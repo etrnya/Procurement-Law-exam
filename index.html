@@ -706,14 +706,25 @@
                             ${(() => {
                                 const exp = q.explanation || '';
                                 const isGeneric = !exp || exp.includes('相關規定辦理') || exp.length < 20;
-                                return `<button 
-                                    id="ai-explain-btn-${q.id}"
-                                    onclick="requestAiExplanation('${q.id}', \`${(q.question_text || '').replace(/`/g, "'").replace(/"/g, "'").replace(/[\n\r]/g, ' ')}\`, \`${(q.options || []).map((o,i) => (i+1)+'. '+o).join(' ').replace(/`/g, "'").replace(/"/g, "'")}\`, ${q.correct_answer})"
-                                    style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.85rem; padding: 0.55rem 1.1rem; background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2)); border: 1px solid rgba(139,92,246,0.5); border-radius: 0.5rem; color: #c4b5fd; font-size: 0.85rem; cursor: pointer; width: 100%; justify-content: center; transition: all 0.2s;"
-                                    onmouseover="this.style.background='linear-gradient(135deg, rgba(99,102,241,0.4), rgba(139,92,246,0.4))'"
-                                    onmouseout="this.style.background='linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2))'">
-                                    <i class="fa-solid fa-wand-magic-sparkles"></i> AI 深度解析 — 引用法條詳解（需 API Key）
-                                </button>`;
+                                return `<div style="display:flex; gap:0.5rem; margin-top:0.85rem;">
+                                    <button 
+                                        id="ai-explain-btn-${q.id}"
+                                        onclick="requestAiExplanation('${q.id}')"
+                                        style="display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 1.1rem; background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2)); border: 1px solid rgba(139,92,246,0.5); border-radius: 0.5rem; color: #c4b5fd; font-size: 0.85rem; cursor: pointer; flex:1; justify-content: center; transition: all 0.2s;"
+                                        onmouseover="this.style.background='linear-gradient(135deg, rgba(99,102,241,0.4), rgba(139,92,246,0.4))'"
+                                        onmouseout="this.style.background='linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2))'">
+                                        <i class="fa-solid fa-wand-magic-sparkles"></i> AI 深度解析
+                                    </button>
+                                    <button 
+                                        id="ai-copy-btn-${q.id}"
+                                        onclick="copyExplainPrompt('${q.id}')"
+                                        title="複製提示詞，可貼到 ChatGPT / Claude 等其他 AI"
+                                        style="display: flex; align-items: center; gap: 0.4rem; padding: 0.55rem 0.9rem; background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.35); border-radius: 0.5rem; color: #7dd3fc; font-size: 0.85rem; cursor: pointer; white-space:nowrap; transition: all 0.2s;"
+                                        onmouseover="this.style.background='rgba(56,189,248,0.2)'"
+                                        onmouseout="this.style.background='rgba(56,189,248,0.1)'">
+                                        <i class="fa-solid fa-copy"></i> 複製提示詞
+                                    </button>
+                                </div>`;
                             })()}
                         </div>
                 `;
@@ -1414,11 +1425,29 @@ ${ragLaws}
 💡 **考試記憶技巧**
 （提供1-2個幫助記憶此知識點的技巧）`;
 
-            // 自動降級：gemini-2.5-flash → gemini-2.0-flash
+            // 自動降級：gemini-2.5-flash → gemini-2.0-flash，每個模型最多等 15 秒
             const EXPLAIN_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
             let explainResponse, explainLastErr;
+            let countdownTimer = null;
+            let secondsLeft = 15;
+
+            // 倒數計時更新按鈕文字
+            const startCountdown = () => {
+                secondsLeft = 15;
+                countdownTimer = setInterval(() => {
+                    secondsLeft--;
+                    if (btn && btn.disabled) {
+                        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> AI 查閱中... (${secondsLeft}s)`;
+                    }
+                    if (secondsLeft <= 0) clearInterval(countdownTimer);
+                }, 1000);
+            };
+            startCountdown();
+
             for (const model of EXPLAIN_MODELS) {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 15000);
                 try {
                     explainResponse = await fetch(url, {
                         method: 'POST',
@@ -1426,19 +1455,25 @@ ${ragLaws}
                         body: JSON.stringify({
                             contents: [{ role: 'user', parts: [{ text: prompt }] }],
                             generationConfig: { temperature: 0.2, maxOutputTokens: 1500 }
-                        })
+                        }),
+                        signal: controller.signal
                     });
+                    clearTimeout(timeoutId);
                     if (explainResponse.status === 503 || explainResponse.status === 429) {
                         explainLastErr = new Error(`HTTP ${explainResponse.status}`);
+                        secondsLeft = 15; // 重置倒數給下個模型
                         continue;
                     }
                     if (!explainResponse.ok) throw new Error(`HTTP ${explainResponse.status}`);
                     break;
                 } catch (fetchErr) {
-                    explainLastErr = fetchErr;
+                    clearTimeout(timeoutId);
+                    explainLastErr = (fetchErr.name === 'AbortError') ? new Error('請求逾時（15秒）') : fetchErr;
                     if (model === EXPLAIN_MODELS[EXPLAIN_MODELS.length - 1]) throw explainLastErr;
+                    secondsLeft = 15;
                 }
             }
+            clearInterval(countdownTimer);
             if (!explainResponse || !explainResponse.ok) throw explainLastErr || new Error('所有模型皆無法回應');
             try {
                 const response = explainResponse;
@@ -1473,6 +1508,80 @@ ${ragLaws}
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> 重試 AI 深度解析';
+                }
+            }
+        }
+
+        // 複製提示詞到剪貼簿（供使用者貼到 ChatGPT / Claude 等其他 AI）
+        async function copyExplainPrompt(questionId) {
+            const list = currentMode === 'exam' ? examQuestions : filteredQuestions;
+            const q = list.find(item => item.id === questionId) || (window.questions_db || []).find(item => item.id === questionId);
+            if (!q) { alert('找不到題目資料！'); return; }
+
+            const questionText = q.question_text || '';
+            const optionsText = (q.options || []).map((o, idx) => `${idx + 1}. ${o}`).join('\n');
+            const correctAnswer = q.correct_answer;
+
+            // 找相關法條
+            const keywords = questionText.split(/[，。？！\s]+/).filter(k => k.length >= 2);
+            const matchedRag = (window.laws_db || []).filter(law =>
+                keywords.some(k => law.content.includes(k) || law.title.includes(k))
+            ).slice(0, 4);
+            const ragLaws = matchedRag.length > 0
+                ? '\n[相關法條參考]\n' + matchedRag.map(l => `${l.article} ${l.title}：${l.content}`).join('\n')
+                : '';
+
+            const prompt = `你是一位精通《政府採購法》及相關子法（施行細則、評選辦法、技術服務辦法等）的台灣法律專家。
+請針對以下考試題目，提供完整、詳細的解析，必須引用具體法條。
+
+【考試題目】
+${questionText}
+
+【各選項】
+${optionsText}
+
+【正確答案】第 ${correctAnswer} 選項
+${ragLaws}
+
+請依以下格式回覆（使用繁體中文）：
+
+📋 解析
+（說明為何第${correctAnswer}選項正確，並引用具體法條，格式如：依政府採購法第XX條第X項規定：「...」）
+
+❌ 其他選項為何錯誤
+（逐一說明其他選項的錯誤原因，引用具體條文）
+
+📖 相關法條條文
+（列出本題涉及的完整法條名稱、條號及重要條文內容）
+
+💡 考試記憶技巧
+（提供1-2個幫助記憶此知識點的技巧）`;
+
+            const copyBtn = document.getElementById(`ai-copy-btn-${questionId}`);
+            try {
+                await navigator.clipboard.writeText(prompt);
+                if (copyBtn) {
+                    const orig = copyBtn.innerHTML;
+                    copyBtn.innerHTML = '<i class="fa-solid fa-check"></i> 已複製！';
+                    copyBtn.style.color = '#4ade80';
+                    setTimeout(() => {
+                        copyBtn.innerHTML = orig;
+                        copyBtn.style.color = '#7dd3fc';
+                    }, 2000);
+                }
+            } catch (e) {
+                // 降級：建立 textarea 手動複製
+                const ta = document.createElement('textarea');
+                ta.value = prompt;
+                ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                if (copyBtn) {
+                    const orig = copyBtn.innerHTML;
+                    copyBtn.innerHTML = '<i class="fa-solid fa-check"></i> 已複製！';
+                    setTimeout(() => { copyBtn.innerHTML = orig; }, 2000);
                 }
             }
         }
