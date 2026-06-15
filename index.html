@@ -1446,7 +1446,13 @@ ${ragLaws}
                 const aiText = data.candidates[0].content.parts[0].text;
 
                 // 將 Markdown 格式轉為 HTML
-                const htmlText = aiText
+                // 先 HTML escape 原始文字，防止 AI 回傳的法條比較符 < > & 被當作 HTML 標籤
+                const escaped = aiText
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+                // 再套 Markdown 格式轉換（此時 < > 已安全，自行加入的 <strong> <br> <div> 不受影響）
+                const htmlText = escaped
                     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
                     .replace(/^📋/gm, '<div style="margin-top:0.75rem; font-weight:bold; color:#38bdf8;">📋')
                     .replace(/^❌/gm, '<div style="margin-top:0.75rem; font-weight:bold; color:#f87171;">❌')
