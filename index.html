@@ -1,0 +1,1839 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>政府採購法 AI 智慧模擬測驗系統</title>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <!-- 側邊欄遮罩 (手機版開啟側欄時背景變暗) -->
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- 1. 側邊欄 -->
+        <aside class="sidebar" id="sidebar">
+            <div class="logo-section" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; overflow: hidden;">
+                    <i class="fa-solid fa-gavel logo-icon"></i>
+                    <div class="logo-text">政府採購法測驗</div>
+                </div>
+                <button id="sidebarCollapseBtn" onclick="toggleSidebarCollapse()" style="border: none; background: transparent; color: var(--text-secondary); cursor: pointer; padding: 0.2rem; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;">
+                    <i class="fa-solid fa-chevron-left" id="sidebarCollapseIcon"></i>
+                </button>
+            </div>
+
+            <!-- 測驗模式切換 -->
+            <div class="menu-group" style="flex: 1; overflow-y: auto;">
+                <div class="menu-title">模式選擇</div>
+                <div class="menu-list">
+                    <button class="menu-btn active" id="modeStudyBtn" onclick="switchSystemMode('practice')">
+                        <i class="fa-solid fa-graduation-cap"></i> <span>順序練習模式</span>
+                    </button>
+                    <button class="menu-btn" id="modeTutorialBtn" onclick="switchSystemMode('tutorial')">
+                        <i class="fa-solid fa-chalkboard-user"></i> <span>核心講義教學</span>
+                    </button>
+                    <button class="menu-btn" id="modeChatBtn" onclick="switchSystemMode('chat')">
+                        <i class="fa-solid fa-comments"></i> <span>AI 採購法規諮詢</span>
+                    </button>
+                    <button class="menu-btn" id="modeExamBtn" onclick="switchSystemMode('exam')">
+                        <i class="fa-solid fa-stopwatch"></i> <span>模擬考試模式</span>
+                    </button>
+                    <button class="menu-btn" id="modeErrorBtn" onclick="switchSystemMode('error')">
+                        <i class="fa-solid fa-triangle-exclamation"></i> <span>錯題複習本</span>
+                    </button>
+                    <button class="menu-btn" id="modeSettingsBtn" onclick="switchSystemMode('settings')">
+                        <i class="fa-solid fa-gears"></i> <span>常用設定</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 系統與資料庫版本資訊 -->
+            <div class="version-section" style="padding: 1rem; border-top: 1px solid var(--card-border); font-size: 0.73rem; color: var(--text-secondary); line-height: 1.55; background: rgba(255,255,255,0.01);">
+                <div style="font-weight: bold; margin-bottom: 0.3rem; color: var(--text-primary);"><i class="fa-solid fa-database"></i> RAG 本地知識庫</div>
+                <div>• 法令彙編版本：第 35 版 (2025/05/14)</div>
+                <div>• 訓練教材版本：113 年更新版</div>
+                <div>• 題庫年份範圍：<span id="dbExamYearRange" style="color: var(--text-primary); font-weight: 500;">-</span></div>
+                <div>• 本地題庫總數：<span id="dbTotalQuestions" style="color: var(--text-primary); font-weight: 500;">0</span> 題</div>
+                <div style="margin-top: 0.4rem; font-size: 0.68rem; color: var(--success); display: flex; align-items: center; gap: 0.25rem;">
+                    <i class="fa-solid fa-circle-check"></i> 狀態：已同步最新官方資料
+                </div>
+            </div>
+        </aside>
+
+        <!-- 2. 右側主工作區 -->
+        <main class="main-content">
+            
+            <!-- 頂部控制列 -->
+            <header class="top-bar">
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button class="menu-toggle-btn" id="menuToggle" onclick="toggleSidebar()">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                    <button class="action-btn" id="restoreSidebarBtn" onclick="toggleSidebarCollapse()" style="display: none; padding: 0.4rem 0.65rem; font-size: 0.8rem; height: 36px; align-items: center; gap: 0.25rem;" title="展開模式選擇">
+                        <i class="fa-solid fa-angles-right"></i> <span>主選單</span>
+                    </button>
+                    <button class="action-btn" id="restoreTopicsBtn" onclick="toggleTopicsPanel()" style="display: none; padding: 0.4rem 0.65rem; font-size: 0.8rem; height: 36px; align-items: center; gap: 0.25rem;" title="展開科目選單">
+                        <i class="fa-solid fa-folder-open"></i> <span>科目選單</span>
+                    </button>
+                </div>
+                
+                <div style="display: flex; gap: 0.75rem; align-items: center;">
+                    <div class="year-filter-wrapper">
+                        <label for="yearFilter" style="font-size: 0.85rem; color: var(--text-secondary);">範圍：</label>
+                        <select class="filter-select" id="yearFilter" onchange="handleYearFilterChange()">
+                            <option value="all">全部年份</option>
+                            <option value="recent5" selected>近五年 (110~115年)</option>
+                        </select>
+                    </div>
+
+                    <div class="year-filter-wrapper">
+                        <label for="typeFilter" style="font-size: 0.85rem; color: var(--text-secondary);">題型：</label>
+                        <select class="filter-select" id="typeFilter" onchange="handleTypeFilterChange()">
+                            <option value="all" selected>全部題型</option>
+                            <option value="tf_question">是非題</option>
+                            <option value="mc_question">選擇題</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 考試模式倒數計時計數器 -->
+                <div id="examTimerWrapper" style="display: none; font-weight: bold; color: var(--error);">
+                    <i class="fa-solid fa-clock"></i> <span id="examTimer">50:00</span>
+                </div>
+            </header>
+
+            <!-- 工作區版面：左側為全高分類選單，右側為測驗視窗 -->
+            <div class="workspace-layout">
+                <aside class="topics-panel" id="topicsPanel">
+                    <div class="menu-title" style="font-weight: bold; color: var(--text-primary); padding-bottom: 0.5rem; margin-bottom: 0.75rem; border-bottom: 1px solid var(--card-border); font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between;">
+                        <span><i class="fa-solid fa-folder-open"></i> 題庫分類科目</span>
+                        <button onclick="toggleTopicsPanel()" style="border: none; background: transparent; color: var(--text-secondary); cursor: pointer; padding: 0.2rem; display: flex; align-items: center;">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                    </div>
+                    <div class="menu-list" id="categoryList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.35rem;">
+                        <!-- 類別按鈕會由 JS 動態生成 -->
+                    </div>
+                </aside>
+
+                <!-- 題目渲染視窗 (支援一題一題往下捲動的串流卡片排版) -->
+                <div class="quiz-viewport">
+
+                    
+                    <!-- 題目卡片串流容器 -->
+                    <div class="quiz-container" id="quizContainer" style="display: none; width: 100%;">
+                        <!-- 題目卡片會由 JavaScript 動態生成並在此串流排列 -->
+                    </div>
+                    
+                    <!-- 教學講義卡片 -->
+                    <div class="card" id="tutorialCard" style="display: none; width: 100%; max-width: 800px;">
+                        <div class="card-header" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+                            <span class="badge-tag" id="tCategory">法規重點講義</span>
+                            <button class="action-btn" style="padding: 0.4rem 1rem; font-size: 0.85rem; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; border: none; border-radius: 0.5rem; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;" onclick="generateSlidePresentation()">
+                                <i class="fa-solid fa-display"></i> 投影片教學模式
+                            </button>
+                        </div>
+                        <div class="question-text" id="tTitle" style="font-size: 1.4rem; font-weight: bold; border-bottom: 1px solid var(--card-border); padding-bottom: 0.5rem; color: var(--accent-blue);">
+                            章節主題
+                        </div>
+                        
+                        <div style="margin-top: 1.25rem;">
+                            <div class="explanation-title" style="margin-bottom: 0.5rem;"><i class="fa-solid fa-star"></i> 本章核心大綱 (Key Takeaways)</div>
+                            <ul id="tTakeaways" style="padding-left: 1.25rem; color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.5rem;">
+                                <!-- 動態講義重點 -->
+                            </ul>
+
+                            <div class="explanation-title" style="margin-bottom: 0.5rem;"><i class="fa-solid fa-book-open"></i> 核心條文速查 (Core Laws)</div>
+                            <div id="tCoreLaws" style="display: flex; flex-direction: column; gap: 0.85rem; margin-bottom: 1.5rem;">
+                                <!-- 動態條文對照 -->
+                            </div>
+
+                            <div class="explanation-title" style="margin-bottom: 0.5rem;"><i class="fa-solid fa-circle-question"></i> 常考考點與陷阱 (Exam Focus)</div>
+                            <ul id="tExamFocus" style="padding-left: 1.25rem; color: var(--warning); line-height: 1.6; margin-bottom: 1.5rem;">
+                                <!-- 動態考點 -->
+                            </ul>
+                            
+                            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1rem;">
+                                <button class="action-btn primary" style="flex: 1; min-width: 180px;" onclick="startCategoryPractice()">
+                                    <i class="fa-solid fa-play"></i> 立即挑戰本章模擬考題
+                                </button>
+                                <button class="action-btn" style="flex: 1; min-width: 180px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; border: none;" onclick="generateSlidePresentation()">
+                                    <i class="fa-solid fa-display"></i> 開啟投影片教學
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI 諮詢對話卡片 -->
+                    <div class="card" id="chatCard" style="display: none; width: 100%; max-width: 800px;">
+                        <div class="card-header">
+                            <span class="badge-tag" id="cCategory">AI 採購法規諮詢顧問</span>
+                        </div>
+
+                        <div class="chat-messages" id="chatMessages">
+                            <div class="chat-bubble ai">
+                                您好！我是您的政府採購法 AI 法律顧問。您可以問我任何關於採購法規的疑問（例如：『公告金額目前是多少？』或『什麼是限制性招標的條件？』），我會引述法規並為您解答。
+                            </div>
+                        </div>
+
+                        <div class="chat-input-wrapper">
+                            <input type="text" class="chat-input" id="chatInput" placeholder="請輸入您想詢問的採購法規問題..." onkeypress="handleChatKeyPress(event)">
+                            <button class="action-btn primary" id="sendChatBtn" onclick="sendChatMessage()">
+                                <i class="fa-solid fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 常用設定卡片 -->
+                    <div class="card" id="settingsCard" style="display: none; width: 100%; max-width: 800px;">
+                        <div class="card-header">
+                            <span class="badge-tag">系統常用設定</span>
+                        </div>
+                        <div class="question-text" style="font-size: 1.4rem; font-weight: bold; border-bottom: 1px solid var(--card-border); padding-bottom: 0.5rem; color: var(--accent-blue);">
+                            <i class="fa-solid fa-key"></i> Gemini API 金鑰配置
+                        </div>
+                        
+                        <div class="settings-box" style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+                            <p style="font-size: 0.95rem; line-height: 1.6; color: var(--text-secondary);">
+                                本系統使用本機 RAG 檢索對照《政府採購法令彙編第35版》最新資料。若要使用 AI 諮詢顧問，請在此處配置您的 Gemini API Key：
+                            </p>
+                            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                <label for="apiKeyInput" style="font-size: 0.85rem; color: var(--text-primary); font-weight: 500;">本機 Gemini API Key：</label>
+                                <div style="display: flex; gap: 0.5rem; width: 100%;">
+                                    <input type="password" class="chat-input" id="apiKeyInput" placeholder="請貼上您的 Gemini API Key" style="font-size: 0.95rem; padding: 0.65rem 1rem;">
+                                    <button class="action-btn primary" style="padding: 0.65rem 1.5rem;" onclick="saveApiKey()">儲存設定</button>
+                                </div>
+                            </div>
+                            
+                            <div style="border-top: 1px solid var(--card-border); padding-top: 1rem; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;">
+                                <div style="font-weight: bold; color: var(--text-primary); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.25rem;">
+                                    <i class="fa-solid fa-shield-halved" style="color: var(--success);"></i> 隱私安全聲明
+                                </div>
+                                1. 您的 API 金鑰將加密儲存於您的本機瀏覽器 LocalStorage 中，不會傳送至 any 第三方伺服器。<br>
+                                2. 本應用為純靜態 SPA (Single Page Application)，AI 功能直接發送請求至 Google 官方 API 端點。<br>
+                                3. 如果您還沒有 API Key，可以前往 <a href="https://aistudio.google.com/" target="_blank" style="color: var(--accent-blue); text-decoration: underline;">Google AI Studio</a> 免費申請。
+                            </div>
+                        </div>
+                    </div> <!-- 關閉 settingsCard -->
+                </div> <!-- 關閉 quiz-viewport -->
+            </div> <!-- 關閉 workspace-layout -->
+
+            <!-- 底部控制導覽列 -->
+            <footer class="action-bar" id="actionBar">
+                <button class="action-btn" id="prevBtn" onclick="navigateQuestion(-1)">
+                    <i class="fa-solid fa-chevron-left"></i> 上一題
+                </button>
+                <button class="action-btn" id="actionCenterBtn" onclick="checkActiveAnswer()">
+                    <i class="fa-solid fa-circle-info"></i> 看答案
+                </button>
+                <button class="action-btn primary" id="nextBtn" onclick="navigateQuestion(1)">
+                    下一題 <i class="fa-solid fa-chevron-right"></i>
+                </button>
+            </footer>
+
+        </main>
+    </div>
+
+    <!-- 載入題庫與講義資料庫 -->
+    <script src="questions_db.js"></script>
+    <script src="tutorial_db.js"></script>
+    <script src="laws_db.js"></script>
+    <script src="explain_letters_db.js"></script>
+    <script src="faq_db.js"></script>
+    <script>
+        // 確保防禦性載入 questions_db, tutorial_db, laws_db, explain_letters_db, faq_db
+        window.questions_db = typeof questions_db !== 'undefined' ? questions_db : [];
+        window.tutorial_db = typeof tutorial_db !== 'undefined' ? tutorial_db : {};
+        window.laws_db = typeof laws_db !== 'undefined' ? laws_db : [];
+        window.explain_letters_db = typeof explain_letters_db !== 'undefined' ? explain_letters_db : [];
+        window.faq_db = typeof faq_db !== 'undefined' ? faq_db : [];
+
+        // 系統全局變數
+        let currentMode = 'practice'; // 'practice' | 'exam' | 'error' | 'tutorial' | 'chat' | 'settings'
+        let currentCategory = '全部題庫';
+        let yearFilter = 'recent5'; // 'all' | 'recent5'
+        let typeFilter = 'all'; // 'all' | 'tf_question' | 'mc_question'
+        let filteredQuestions = [];
+        let currentIndex = 0;
+        
+        // 模擬考試專用變數
+        let examQuestions = [];
+        let examAnswers = {}; // { questionId: selectedIndex }
+        let examTimerInterval = null;
+        let examTimeRemaining = 3000; // 50分鐘 = 3000秒
+        let examSubmitted = false;
+
+        let userErrors = JSON.parse(localStorage.getItem('wrong_answers') || '[]');
+
+        const CATEGORIES = [
+            "全部題庫",
+            "政府採購全生命週期概論",
+            "政府採購法之總則、招標及決標",
+            "政府採購法之履約管理及驗收",
+            "政府採購法之罰則及附則",
+            "政府採購法之爭議處理",
+            "底價及價格分析",
+            "投標須知及招標文件製作",
+            "採購契約",
+            "最有利標及評選優勝廠商",
+            "電子採購實務",
+            "工程及技術服務採購作業",
+            "財物及勞務採購作業",
+            "錯誤採購態樣",
+            "道德規範及違法處置",
+            "常用採購工具及參考資源"
+        ];
+
+        // 初始化
+        window.addEventListener('DOMContentLoaded', () => {
+            renderCategories();
+            applyFilters();
+            renderQuestion();
+            loadSavedApiKey();
+            renderDatabaseStats();
+        });
+
+        // 渲染資料庫統計資訊
+        function renderDatabaseStats() {
+            const list = window.questions_db || [];
+            document.getElementById('dbTotalQuestions').innerText = list.length;
+            if (list.length > 0) {
+                const years = list.map(q => q.exam_year).filter(y => !isNaN(y));
+                if (years.length > 0) {
+                    const minYear = Math.min(...years);
+                    const maxYear = Math.max(...years);
+                    document.getElementById('dbExamYearRange').innerText = `${minYear} ~ ${maxYear} 年`;
+                } else {
+                    document.getElementById('dbExamYearRange').innerText = "無";
+                }
+            } else {
+                document.getElementById('dbExamYearRange').innerText = "無";
+            }
+        }
+
+        // 載入 API 金鑰
+        function loadSavedApiKey() {
+            const savedKey = localStorage.getItem('gemini_api_key');
+            if (savedKey) {
+                document.getElementById('apiKeyInput').value = savedKey;
+            }
+        }
+
+        function saveApiKey() {
+            const key = document.getElementById('apiKeyInput').value.trim();
+            localStorage.setItem('gemini_api_key', key);
+            alert("API 金鑰已成功儲存至本機！");
+        }
+
+        // 渲染章節分類清單 (獨立於左側全高區，帶有各章節動態題數標籤)
+        function renderCategories() {
+            const list = document.getElementById('categoryList');
+            list.innerHTML = '';
+            CATEGORIES.forEach(cat => {
+                // 計算各章題庫數量做為 badge 數值以供視覺提示
+                let count = 0;
+                if (cat === '全部題庫') {
+                    count = (window.questions_db || []).length;
+                } else {
+                    count = (window.questions_db || []).filter(q => q.category.includes(cat) || cat.includes(q.category)).length;
+                }
+
+                const btn = document.createElement('button');
+                btn.className = `menu-btn ${cat === currentCategory ? 'active' : ''}`;
+                btn.innerHTML = `<span style="flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><i class="fa-solid fa-book-bookmark"></i> ${cat}</span> <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: var(--accent-blue); padding: 0.1rem 0.4rem; border-radius: 99px; font-size: 0.72rem; font-weight: bold; margin-left: 0.5rem;">${count}</span>`;
+                btn.onclick = () => selectCategory(cat);
+                list.appendChild(btn);
+            });
+        }
+
+        function selectCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll('#categoryList .menu-btn').forEach((btn, idx) => {
+                btn.classList.toggle('active', CATEGORIES[idx] === cat);
+            });
+            if (currentMode === 'exam') {
+                initMockExam();
+            } else {
+                applyFilters();
+                currentIndex = 0;
+                renderQuestion();
+            }
+            if (window.innerWidth <= 768) {
+                toggleSidebar();
+            }
+        }
+
+        // 手機版側邊欄切換
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('open');
+        }
+
+        // 桌機版側邊欄收縮 (模式選擇收起)
+        function toggleSidebarCollapse() {
+            const sidebar = document.getElementById('sidebar');
+            const icon = document.getElementById('sidebarCollapseIcon');
+            const restoreBtn = document.getElementById('restoreSidebarBtn');
+            sidebar.classList.toggle('collapsed');
+            
+            const isCollapsed = sidebar.classList.contains('collapsed');
+            if (isCollapsed) {
+                icon.className = "fa-solid fa-chevron-right";
+                if (restoreBtn) restoreBtn.style.display = 'inline-flex';
+            } else {
+                icon.className = "fa-solid fa-chevron-left";
+                if (restoreBtn) restoreBtn.style.display = 'none';
+            }
+        }
+
+        // 科目選單收縮 (題庫分類科目收起)
+        function toggleTopicsPanel() {
+            const panel = document.getElementById('topicsPanel');
+            const restoreBtn = document.getElementById('restoreTopicsBtn');
+            panel.classList.toggle('collapsed');
+            
+            const isCollapsed = panel.classList.contains('collapsed');
+            if (restoreBtn) {
+                restoreBtn.style.display = isCollapsed ? 'inline-flex' : 'none';
+            }
+        }
+
+        // 點擊遮罩關閉側邊欄
+        document.getElementById('sidebarOverlay').addEventListener('click', toggleSidebar);
+
+        // 年度與類別與題型過濾機制
+        function applyFilters() {
+            let list = window.questions_db || [];
+
+            // 1. 科目篩選
+            if (currentCategory !== '全部題庫') {
+                list = list.filter(q => q.category.includes(currentCategory) || currentCategory.includes(q.category));
+            }
+
+            // 2. 年度篩選 (近五年：110 ~ 115)
+            if (yearFilter === 'recent5') {
+                list = list.filter(q => q.exam_year >= 110 && q.exam_year <= 115);
+            }
+
+            // 2.5 題型篩選 (是非題/選擇題)
+            if (typeFilter !== 'all') {
+                list = list.filter(q => q.type === typeFilter);
+            }
+
+            // 3. 錯題本模式篩選
+            if (currentMode === 'error') {
+                list = list.filter(q => userErrors.includes(q.id));
+            }
+
+            filteredQuestions = list;
+        }
+
+        function handleYearFilterChange() {
+            yearFilter = document.getElementById('yearFilter').value;
+            if (currentMode === 'exam') {
+                initMockExam();
+            } else {
+                applyFilters();
+                currentIndex = 0;
+                renderQuestion();
+            }
+        }
+
+        function handleTypeFilterChange() {
+            typeFilter = document.getElementById('typeFilter').value;
+            if (currentMode === 'exam') {
+                initMockExam();
+            } else {
+                applyFilters();
+                currentIndex = 0;
+                renderQuestion();
+            }
+        }
+
+        let visibleQuestionsCount = 30;
+
+        // 切換系統模式
+        function switchSystemMode(mode) {
+            currentMode = mode;
+            visibleQuestionsCount = 30; // 重置可見題數
+            document.getElementById('modeStudyBtn').classList.toggle('active', mode === 'practice');
+            document.getElementById('modeTutorialBtn').classList.toggle('active', mode === 'tutorial');
+            document.getElementById('modeChatBtn').classList.toggle('active', mode === 'chat');
+            document.getElementById('modeExamBtn').classList.toggle('active', mode === 'exam');
+            document.getElementById('modeErrorBtn').classList.toggle('active', mode === 'error');
+            document.getElementById('modeSettingsBtn').classList.toggle('active', mode === 'settings');
+
+            // 根據模式顯示/隱藏左側科目選單 (練習、講義、模擬考、錯題本顯示，其餘隱藏，與護理師考試一致)
+            const showTopics = (mode === 'practice' || mode === 'tutorial' || mode === 'exam' || mode === 'error');
+            document.getElementById('topicsPanel').style.display = showTopics ? '' : 'none';
+
+            if (mode === 'exam') {
+                initMockExam();
+            } else {
+                // 清理計時器
+                if (examTimerInterval) {
+                    clearInterval(examTimerInterval);
+                    examTimerInterval = null;
+                }
+                document.getElementById('examTimerWrapper').style.display = 'none';
+                applyFilters();
+                currentIndex = 0;
+                renderQuestion();
+            }
+        }
+
+        // 初始化模擬考試
+        function initMockExam() {
+            applyFilters();
+            
+            if (filteredQuestions.length === 0) {
+                alert("目前篩選條件下無任何考題，無法開始考試！");
+                switchSystemMode('practice');
+                return;
+            }
+
+            // 打亂題目並選取最多 10 題作為考卷
+            const examCount = Math.min(10, filteredQuestions.length);
+            const shuffled = [...filteredQuestions].sort(() => 0.5 - Math.random());
+            examQuestions = shuffled.slice(0, examCount);
+            
+            examAnswers = {};
+            examTimeRemaining = 3000; // 50 分鐘
+            examSubmitted = false;
+            currentIndex = 0;
+
+            // 啟動計時器
+            document.getElementById('examTimerWrapper').style.display = 'block';
+            updateExamTimerDisplay();
+
+            if (examTimerInterval) clearInterval(examTimerInterval);
+            examTimerInterval = setInterval(() => {
+                examTimeRemaining--;
+                updateExamTimerDisplay();
+                if (examTimeRemaining <= 0) {
+                    clearInterval(examTimerInterval);
+                    alert("考試時間到！系統已自動幫您交卷。");
+                    submitMockExam();
+                }
+            }, 1000);
+
+            renderQuestion();
+        }
+
+        function updateExamTimerDisplay() {
+            const minutes = Math.floor(examTimeRemaining / 60);
+            const seconds = examTimeRemaining % 60;
+            document.getElementById('examTimer').innerText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+
+
+        // 渲染當前考題、講義、對話或設定
+        function renderQuestion() {
+            const quizContainer = document.getElementById('quizContainer');
+            const tutorialCard = document.getElementById('tutorialCard');
+            const chatCard = document.getElementById('chatCard');
+            const settingsCard = document.getElementById('settingsCard');
+            const actionBar = document.getElementById('actionBar');
+            const actionCenterBtn = document.getElementById('actionCenterBtn');
+
+            // 隱藏所有工作區主要容器
+            quizContainer.style.display = 'none';
+            tutorialCard.style.display = 'none';
+            chatCard.style.display = 'none';
+            settingsCard.style.display = 'none';
+
+            if (currentMode === 'tutorial') {
+                tutorialCard.style.display = 'block';
+                actionBar.style.display = 'none'; 
+                renderTutorial();
+                return;
+            }
+
+            if (currentMode === 'chat') {
+                chatCard.style.display = 'block';
+                actionBar.style.display = 'none';
+                return;
+            }
+
+            if (currentMode === 'settings') {
+                settingsCard.style.display = 'block';
+                actionBar.style.display = 'none';
+                return;
+            }
+
+            // 否則為題目模式 (是非題 / 選擇題 / 模擬考 / 錯題本)
+            quizContainer.style.display = 'block';
+            
+            // 串流卡片練習不需要下一題/上一題的導覽列
+            if (currentMode === 'exam') {
+                actionBar.style.display = 'flex';
+                if (examSubmitted) {
+                    actionCenterBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i> 已交卷';
+                    actionCenterBtn.disabled = true;
+                } else {
+                    actionCenterBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 提交試卷';
+                    actionCenterBtn.disabled = false;
+                    actionCenterBtn.onclick = submitMockExam;
+                }
+            } else {
+                actionBar.style.display = 'none'; // 練習/錯題本改為一題一題滑動，隱藏導覽列
+            }
+
+            // 獲取當前需要渲染的題目清單
+            const list = currentMode === 'exam' ? examQuestions : filteredQuestions;
+            
+            if (list.length === 0) {
+                quizContainer.innerHTML = `
+                    <div class="card" style="width: 100%; max-width: 800px; text-align: center;">
+                        <span class="badge-tag">系統提示</span>
+                        <p style="margin-top: 1.5rem; color: var(--text-secondary);">
+                            ${currentMode === 'error' ? "🎉 您的錯題本目前空空如也！恭喜您！" : "📭 找不到符合條件的考題，請試著更換篩選年份或科目。"}
+                        </p>
+                    </div>
+                `;
+                return;
+            }
+
+            // 限制每次最大渲染數以避免 DOM 渲染卡頓，考試模式下全部顯示
+            const maxToRender = currentMode === 'exam' ? list.length : Math.min(visibleQuestionsCount, list.length);
+            
+            let htmlContent = '';
+            for (let i = 0; i < maxToRender; i++) {
+                const q = list[i];
+                
+                // 檢查該題是否在錯題本中
+                const isError = userErrors.includes(q.id);
+                const errorBadge = (currentMode === 'error' || isError) ? `<span class="badge-tag" style="background: rgba(239, 68, 68, 0.15); color: var(--error); margin-left: 0.5rem;"><i class="fa-solid fa-triangle-exclamation"></i> 錯題</span>` : '';
+                
+                // 檢查是否已回答過以保持狀態 (僅限練習與錯題模式)
+                const isAnswered = q.selectedAnswer !== undefined;
+
+                htmlContent += `
+                    <div class="card" id="card-${q.id}" style="width: 100%; max-width: 800px; margin-bottom: 1.5rem;">
+                        <div class="card-header">
+                            <span class="badge-tag">${q.category}</span>
+                            <div>
+                                <span class="year-tag">${q.exam_year} 年考題</span>
+                                ${errorBadge}
+                            </div>
+                        </div>
+                        <div class="question-text">
+                            (${i + 1}/${list.length}) ${q.question_text}
+                        </div>
+                        <div class="options-grid" id="options-${q.id}">
+                `;
+
+                // 渲染選項按鈕
+                q.options.forEach((optText, idx) => {
+                    const btnVal = idx + 1;
+                    let btnClass = 'option-btn';
+                    let disabledAttr = '';
+
+                    if (currentMode === 'exam') {
+                        // 考試模式下的樣式與高亮
+                        if (examAnswers[q.id] === btnVal) {
+                            btnClass += ' selected';
+                        }
+                        if (examSubmitted) {
+                            disabledAttr = 'disabled';
+                            const isBtnCorrect = (btnVal === q.correct_answer || (q.correct_answer === true && btnVal === 1) || (q.correct_answer === false && btnVal === 2));
+                            if (isBtnCorrect) {
+                                btnClass += ' correct';
+                            } else if (examAnswers[q.id] === btnVal) {
+                                btnClass += ' wrong';
+                            }
+                        }
+                    } else {
+                        // 練習/錯題模式：如果已回答過，則套用對錯樣式
+                        if (isAnswered) {
+                            disabledAttr = 'disabled';
+                            const isBtnCorrect = (btnVal === q.correct_answer || (q.correct_answer === true && btnVal === 1) || (q.correct_answer === false && btnVal === 2));
+                            if (isBtnCorrect) {
+                                btnClass += ' correct';
+                            } else if (q.selectedAnswer === btnVal) {
+                                btnClass += ' wrong';
+                            }
+                        }
+                    }
+
+                    htmlContent += `
+                        <button class="${btnClass}" ${disabledAttr} onclick="selectOption('${q.id}', ${btnVal})">
+                            <span class="option-idx">${btnVal}</span>
+                            <span>${optText}</span>
+                        </button>
+                    `;
+                });
+
+                htmlContent += `
+                        </div>
+
+                        <!-- 修法警告區塊 -->
+                        <div class="amendment-card" id="amendment-${q.id}" style="${(q.has_amendment && (isAnswered || (currentMode === 'exam' && examSubmitted))) ? 'display: flex;' : 'display: none;'} margin-top: 1rem;">
+                            <div class="amendment-warning-icon">
+                                <i class="fa-solid fa-circle-exclamation"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: bold; color: var(--warning); margin-bottom: 0.25rem;">修法提醒警示 (新舊法規對照)</div>
+                                <div style="font-size: 0.85rem; margin-bottom: 0.25rem;">${q.amendment_warning || ''}</div>
+                                <div style="font-size: 0.85rem; text-decoration: line-through; opacity: 0.7;"><strong>歷史出題依據：</strong>${q.historical_regulation || ''}</div>
+                                <div style="font-size: 0.85rem; color: var(--success); font-weight: bold;"><strong>現行最新法規：</strong>${q.current_regulation || ''}</div>
+                            </div>
+                        </div>
+
+                        <!-- 解析說明區塊 -->
+                        <div class="explanation-card" id="explanation-${q.id}" style="${(isAnswered || (currentMode === 'exam' && examSubmitted)) ? 'display: block;' : 'display: none;'} margin-top: 1rem;">
+                            <div class="explanation-title">
+                                <i class="fa-solid fa-circle-info"></i> 題目詳細解析
+                            </div>
+                            <div id="explanation-text-${q.id}" style="color: var(--text-primary); font-size: 0.95rem; line-height: 1.6;">
+                                ${(() => {
+                                    const exp = q.explanation || '';
+                                    const isGeneric = !exp || exp.includes('相關規定辦理') || exp.length < 20;
+                                    if (isGeneric) {
+                                        return `<span style="color: var(--text-secondary); font-style: italic;">本題解析尚未收錄詳細文字。</span>`;
+                                    }
+                                    return exp;
+                                })()}
+                            </div>
+                            ${(() => {
+                                const exp = q.explanation || '';
+                                const isGeneric = !exp || exp.includes('相關規定辦理') || exp.length < 20;
+                                return `<button 
+                                    id="ai-explain-btn-${q.id}"
+                                    onclick="requestAiExplanation('${q.id}', \`${(q.question_text || '').replace(/`/g, "'").replace(/"/g, "'").replace(/
+/g, ' ').replace(//g, '')}\`, \`${(q.options || []).map((o,i) => (i+1)+'. '+o).join(' ').replace(/`/g, "'").replace(/"/g, "'")}\`, ${q.correct_answer})"
+                                    style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.85rem; padding: 0.55rem 1.1rem; background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2)); border: 1px solid rgba(139,92,246,0.5); border-radius: 0.5rem; color: #c4b5fd; font-size: 0.85rem; cursor: pointer; width: 100%; justify-content: center; transition: all 0.2s;"
+                                    onmouseover="this.style.background='linear-gradient(135deg, rgba(99,102,241,0.4), rgba(139,92,246,0.4))'"
+                                    onmouseout="this.style.background='linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2))'">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> AI 深度解析 — 引用法條詳解（需 API Key）
+                                </button>`;
+                            })()}
+                        </div>
+                `;
+
+
+                // 錯題本模式下答對的移除按鈕
+                if (currentMode === 'error' && isAnswered) {
+                    const isCorrect = (q.selectedAnswer === q.correct_answer || (q.correct_answer === true && q.selectedAnswer === 1) || (q.correct_answer === false && q.selectedAnswer === 2));
+                    if (isCorrect) {
+                        htmlContent += `
+                            <button class="action-btn" style="margin-top: 1rem; background-color: var(--error); color: #fff; width: 100%;" onclick="removeQuestionFromErrorLedger('${q.id}')">
+                                <i class="fa-solid fa-trash-can"></i> 答對了！點此從錯題本移除
+                            </button>
+                        `;
+                    }
+                }
+
+                htmlContent += `
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 如果還有更多題目，顯示 "載入更多" 按鈕
+            if (currentMode !== 'exam' && list.length > visibleQuestionsCount) {
+                htmlContent += `
+                    <div style="width: 100%; max-width: 800px; text-align: center; margin-top: 1rem; margin-bottom: 3rem;">
+                        <button class="action-btn primary" style="width: 100%; padding: 0.85rem;" onclick="loadMoreQuestions()">
+                            <i class="fa-solid fa-angles-down"></i> 載入更多題目 (${visibleQuestionsCount} / ${list.length})
+                        </button>
+                    </div>
+                `;
+            }
+
+            quizContainer.innerHTML = htmlContent;
+        }
+
+        // 載入更多題目
+        function loadMoreQuestions() {
+            visibleQuestionsCount += 30;
+            renderQuestion();
+        }
+
+        // 答題選擇邏輯 (支援指定題目 ID)
+        function selectOption(questionId, selectedIdx) {
+            // 獲取目標題目物件
+            const list = currentMode === 'exam' ? examQuestions : filteredQuestions;
+            const q = list.find(item => item.id === questionId);
+            if (!q) return;
+
+            if (currentMode === 'exam') {
+                if (examSubmitted) return; // 已交卷則不可修改
+                examAnswers[q.id] = selectedIdx;
+                
+                // 更新選項高亮狀態
+                const optionsContainer = document.getElementById(`options-${q.id}`);
+                if (optionsContainer) {
+                    optionsContainer.querySelectorAll('.option-btn').forEach((btn, idx) => {
+                        btn.classList.toggle('selected', (idx + 1) === selectedIdx);
+                    });
+                }
+                return;
+            }
+
+            // 練習模式 / 錯題複習：立判正誤
+            q.selectedAnswer = selectedIdx;
+            const isCorrect = (selectedIdx === q.correct_answer || (q.correct_answer === true && selectedIdx === 1) || (q.correct_answer === false && selectedIdx === 2));
+
+            // 更新選項按鈕狀態
+            const optionsContainer = document.getElementById(`options-${q.id}`);
+            if (optionsContainer) {
+                optionsContainer.querySelectorAll('.option-btn').forEach((btn, idx) => {
+                    btn.disabled = true;
+                    const btnVal = idx + 1;
+                    
+                    const isBtnCorrect = (btnVal === q.correct_answer || (q.correct_answer === true && btnVal === 1) || (q.correct_answer === false && btnVal === 2));
+                    if (isBtnCorrect) {
+                        btn.classList.add('correct');
+                    }
+                    if (!isCorrect && btnVal === selectedIdx) {
+                        btn.classList.add('wrong');
+                    }
+                });
+            }
+
+            // 自動管理錯題本
+            if (!isCorrect) {
+                addToErrors(q.id);
+            }
+
+            // 動態展示該題目的修法提示與解析卡片
+            const amendmentDiv = document.getElementById(`amendment-${q.id}`);
+            const explanationDiv = document.getElementById(`explanation-${q.id}`);
+            if (q.has_amendment && amendmentDiv) {
+                amendmentDiv.style.display = 'flex';
+            }
+            if (explanationDiv) {
+                explanationDiv.style.display = 'block';
+                
+                // 如果是錯題本模式且答對了，動態追加「移出錯題本」按鈕
+                if (currentMode === 'error' && isCorrect) {
+                    const removeBtnId = `remove-btn-${q.id}`;
+                    if (!document.getElementById(removeBtnId)) {
+                        const removeBtn = document.createElement('button');
+                        removeBtn.id = removeBtnId;
+                        removeBtn.className = 'action-btn';
+                        removeBtn.style.marginTop = '1rem';
+                        removeBtn.style.backgroundColor = 'var(--error)';
+                        removeBtn.style.color = '#fff';
+                        removeBtn.style.width = '100%';
+                        removeBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i> 答對了！點此從錯題本移除';
+                        removeBtn.onclick = () => removeQuestionFromErrorLedger(q.id);
+                        explanationDiv.appendChild(removeBtn);
+                    }
+                }
+            }
+        }
+
+        // 從錯題本移除題目並重新渲染
+        function removeQuestionFromErrorLedger(questionId) {
+            removeFromErrors(questionId);
+            applyFilters();
+            renderQuestion();
+        }
+
+        // 依章節動態篩選法令彙編中的條文、施行細則、解釋函令及 FAQ
+        function getDynamicTutorialData(cat) {
+            let matchedLaws = [];
+            let matchedLetters = [];
+            let matchedFaqs = [];
+            
+            const laws = window.laws_db || [];
+            const letters = window.explain_letters_db || [];
+            const faqs = window.faq_db || [];
+            
+            function getArticleNum(artStr) {
+                const m = artStr.match(/\d+/);
+                return m ? parseInt(m[0]) : 0;
+            }
+            
+            // 建立分類規則
+            if (cat === "政府採購全生命週期概論" || cat === "總則") {
+                matchedLaws = laws.filter(l => {
+                    const n = getArticleNum(l.article);
+                    return n >= 1 && n <= 17;
+                });
+                matchedLetters = letters.filter(x => (x.category && (x.category.includes("總則") || x.category.includes("適用範圍"))) || !x.letter_no);
+                matchedFaqs = faqs.filter(f => f.question.includes("適用") || f.question.includes("補助") || f.question.includes("採購"));
+            }
+            else if (cat === "政府採購法之總則、招標及決標") {
+                matchedLaws = laws.filter(l => {
+                    const n = getArticleNum(l.article);
+                    return n >= 1 && n <= 62;
+                });
+                matchedLetters = letters.filter(x => x.category === "招標" || x.category === "決標" || (x.title && (x.title.includes("招標") || x.title.includes("決標"))));
+                matchedFaqs = faqs.filter(f => f.question.includes("招標") || f.question.includes("決標") || f.question.includes("投標") || f.question.includes("開標"));
+            }
+            else if (cat === "政府採購法之履約管理及驗收") {
+                matchedLaws = laws.filter(l => {
+                    const n = getArticleNum(l.article);
+                    return n >= 63 && n <= 73;
+                });
+                matchedLetters = letters.filter(x => x.category === "履約管理" || x.category === "驗收" || (x.title && (x.title.includes("履約") || x.title.includes("驗收"))));
+                matchedFaqs = faqs.filter(f => f.question.includes("履約") || f.question.includes("保固") || f.question.includes("驗收") || f.question.includes("逾期"));
+            }
+            else if (cat === "政府採購法之罰則及附則") {
+                matchedLaws = laws.filter(l => {
+                    const n = getArticleNum(l.article);
+                    return n >= 87 && n <= 114;
+                });
+                matchedLetters = letters.filter(x => x.letter_no && x.letter_no.includes("101"));
+                matchedFaqs = faqs.filter(f => f.question.includes("罰則") || f.question.includes("刊登") || f.question.includes("停權"));
+            }
+            else if (cat === "政府採購法之爭議處理") {
+                matchedLaws = laws.filter(l => {
+                    const n = getArticleNum(l.article);
+                    return n >= 74 && n <= 86;
+                });
+                matchedLetters = letters.filter(x => x.category === "爭議處理" || (x.title && x.title.includes("申訴")));
+                matchedFaqs = faqs.filter(f => f.question.includes("申訴") || f.question.includes("調解") || f.question.includes("異議") || f.question.includes("爭議"));
+            }
+            else if (cat === "底價及價格分析") {
+                matchedLaws = laws.filter(l => ["第 46 條", "第 47 條", "第 54 條", "第 58 條", "第 59 條"].includes(l.article));
+                matchedLetters = letters.filter(x => x.title && (x.title.includes("底價") || x.title.includes("價格") || x.title.includes("費用")));
+                matchedFaqs = faqs.filter(f => f.question.includes("底價") || f.question.includes("減價") || f.question.includes("報價") || f.question.includes("超低標"));
+            }
+            else if (cat === "投標須知及招標文件製作") {
+                matchedLaws = laws.filter(l => {
+                    const n = getArticleNum(l.article);
+                    return (n >= 27 && n <= 37) || n === 6;
+                });
+                matchedLetters = letters.filter(x => x.title && (x.title.includes("同等品") || x.title.includes("規格") || x.title.includes("招標文件")));
+                matchedFaqs = faqs.filter(f => f.question.includes("規格") || f.question.includes("同等品") || f.question.includes("招標文件") || f.question.includes("投標須知"));
+            }
+            else if (cat === "採購契約") {
+                matchedLaws = laws.filter(l => {
+                    const n = getArticleNum(l.article);
+                    return n >= 63 && n <= 69;
+                });
+                matchedLetters = letters.filter(x => x.category === "履約管理" || (x.title && x.title.includes("契約")));
+                matchedFaqs = faqs.filter(f => f.question.includes("契約") || f.question.includes("保證金") || f.question.includes("逾期罰款"));
+            }
+            else if (cat === "最有利標及評選優勝廠商") {
+                matchedLaws = laws.filter(l => ["第 52 條", "第 56 條", "第 94 條", "第 95 條"].includes(l.article));
+                matchedLetters = letters.filter(x => x.title && (x.title.includes("評選") || x.title.includes("最有利標")));
+                matchedFaqs = faqs.filter(f => f.question.includes("最有利標") || f.question.includes("評選") || f.question.includes("評分") || f.question.includes("優勝"));
+            }
+            else if (cat === "電子採購實務") {
+                matchedLaws = laws.filter(l => ["第 85-3 條", "第 85-4 條", "第 93-1 條"].includes(l.article));
+                matchedLetters = letters.filter(x => x.title && x.title.includes("電子"));
+                matchedFaqs = faqs.filter(f => f.question.includes("電子") || f.question.includes("領標") || f.question.includes("系統"));
+            }
+            else if (cat === "工程及技術服務採購作業") {
+                matchedLaws = laws.filter(l => {
+                    const n = getArticleNum(l.article);
+                    return n === 22 || n === 52 || n === 70 || n === 94;
+                });
+                matchedLetters = letters.filter(x => x.title && (x.title.includes("技術服務") || x.title.includes("監造") || x.title.includes("規劃設計")));
+                matchedFaqs = faqs.filter(f => f.question.includes("工程") || f.question.includes("技術服務") || f.question.includes("技服") || f.question.includes("監造"));
+            }
+            else if (cat === "財物及勞務採購作業") {
+                matchedLaws = laws.filter(l => {
+                    const n = getArticleNum(l.article);
+                    return n === 2 || n === 22 || n === 111;
+                });
+                matchedLetters = letters.filter(x => x.category === "勞務採購" || (x.title && x.title.includes("勞務")));
+                matchedFaqs = faqs.filter(f => f.question.includes("勞務") || f.question.includes("財物") || f.question.includes("租賃"));
+            }
+            else if (cat === "錯誤採購態樣") {
+                matchedLaws = laws.filter(l => ["第 6 條", "第 36 條", "第 37 條", "第 50 條", "第 101 條"].includes(l.article));
+                matchedLetters = letters.filter(x => (x.content && x.content.includes("錯誤")) || (x.title && x.title.includes("錯誤")));
+                matchedFaqs = faqs.filter(f => f.question.includes("缺失") || f.question.includes("違法") || f.question.includes("不當限制"));
+            }
+            else if (cat === "道德規範及違法處置") {
+                matchedLaws = laws.filter(l => {
+                    const n = getArticleNum(l.article);
+                    return n === 15 || n === 34 || (n >= 87 && n <= 92) || n === 112;
+                });
+                matchedLetters = letters.filter(x => x.letter_no && (x.letter_no.includes("101") || x.letter_no.includes("102")));
+                matchedFaqs = faqs.filter(f => f.question.includes("行賄") || f.question.includes("洩密") || f.question.includes("圍標") || f.question.includes("利益衝突"));
+            }
+            
+            return {
+                laws: matchedLaws,
+                letters: matchedLetters,
+                faqs: matchedFaqs
+            };
+        }
+
+        // 渲染講義內容
+        function renderTutorial() {
+            const cat = currentCategory === '全部題庫' ? '政府採購全生命週期概論' : currentCategory;
+            const tData = window.tutorial_db[cat];
+            const dynamicData = getDynamicTutorialData(cat);
+
+            document.getElementById('tCategory').innerText = currentCategory === '全部題庫' ? '法規重點導覽 (全部題庫模式下預設顯示首章)' : '法規重點講義';
+            document.getElementById('tTitle').innerText = cat;
+
+            const takeawaysList = document.getElementById('tTakeaways');
+            const coreLawsDiv = document.getElementById('tCoreLaws');
+            const examFocusList = document.getElementById('tExamFocus');
+
+            // 1. 核心大綱
+            takeawaysList.innerHTML = '';
+            if (tData && tData.key_takeaways) {
+                tData.key_takeaways.forEach(tk => {
+                    takeawaysList.innerHTML += `<li>${tk}</li>`;
+                });
+            } else {
+                takeawaysList.innerHTML += `<li>本章重點在於政府採購法對於『${cat}』的實務運作要點與核心程序要求。</li>`;
+                takeawaysList.innerHTML += `<li>承辦人員應熟讀本章相關政府採購法令與施行細則，確保採購作業之公平性、公開性與正當程序。</li>`;
+            }
+
+            // 2. 核心法條與解釋函令對照 (整合 laws_db 與 explain_letters_db)
+            coreLawsDiv.innerHTML = '';
+            
+            // 優先渲染靜態講義中指定的法條
+            const renderedArticles = new Set();
+            if (tData && tData.core_laws) {
+                tData.core_laws.forEach(law => {
+                    renderedArticles.add(law.article.trim());
+                    coreLawsDiv.innerHTML += `
+                        <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); padding: 0.85rem; border-radius: 0.5rem;">
+                            <strong style="color: var(--accent-blue); display: block; margin-bottom: 0.25rem;">${law.article}</strong>
+                            <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-primary);">${law.content}</p>
+                            <p style="font-size: 0.8rem; color: var(--warning); margin-top: 0.4rem; font-style: italic;">${law.note}</p>
+                        </div>
+                    `;
+                });
+            }
+
+            // 渲染動態匹配到的政府採購法令彙編條文
+            dynamicData.laws.forEach(law => {
+                const cleanArt = `政府採購法 ${law.article}`;
+                if (!renderedArticles.has(law.article.trim()) && !renderedArticles.has(cleanArt)) {
+                    coreLawsDiv.innerHTML += `
+                        <div style="background: rgba(255, 255, 255, 0.02); border: 1px dashed var(--card-border); padding: 0.85rem; border-radius: 0.5rem;">
+                            <strong style="color: var(--accent-blue); display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                                <span>政府採購法 ${law.article} - ${law.title}</span>
+                                <span style="font-size: 0.7rem; color: var(--success); font-weight: normal; border: 1px solid var(--success); padding: 0.05rem 0.25rem; border-radius: 0.25rem;">法令彙編</span>
+                            </strong>
+                            <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-primary);">${law.content}</p>
+                        </div>
+                    `;
+                }
+            });
+
+            // 渲染動態匹配到的施行細則與主管機關解釋函令
+            dynamicData.letters.forEach(letter => {
+                const tag = letter.letter_no ? `公文文號：${letter.letter_no}` : `施行細則`;
+                coreLawsDiv.innerHTML += `
+                    <div style="background: rgba(255, 180, 0, 0.02); border: 1px solid rgba(255, 180, 0, 0.15); padding: 0.85rem; border-radius: 0.5rem;">
+                        <strong style="color: var(--warning); display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                            <span>${letter.title || "解釋函令/細則"}</span>
+                            <span style="font-size: 0.7rem; font-weight: normal; border: 1px solid var(--warning); padding: 0.05rem 0.25rem; border-radius: 0.25rem;">細則與函釋</span>
+                        </strong>
+                        <p style="font-size: 0.85rem; line-height: 1.5; color: var(--text-primary); white-space: pre-line;">${letter.content}</p>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.4rem; font-style: italic;">
+                            ${tag} ${letter.date ? ' (' + letter.date + ')' : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            if (coreLawsDiv.innerHTML === '') {
+                coreLawsDiv.innerHTML = '<div style="color: var(--text-secondary);">本章節暫無相關核心條文資料。</div>';
+            }
+
+            // 3. 常考考點與實務 Q&A (整合 static focus 與 faq_db)
+            examFocusList.innerHTML = '';
+            
+            // 靜態考點
+            if (tData && tData.exam_focus) {
+                tData.exam_focus.forEach(focus => {
+                    examFocusList.innerHTML += `<li>${focus}</li>`;
+                });
+            }
+
+            // 動態 FAQ 實務考點
+            dynamicData.faqs.forEach(faq => {
+                examFocusList.innerHTML += `
+                    <li style="margin-bottom: 0.75rem; list-style-type: none; border-left: 2px solid var(--success); padding-left: 0.5rem;">
+                        <strong style="color: var(--text-primary); font-size: 0.88rem; display: block; margin-bottom: 0.15rem;">❔ 常見問答：${faq.question}</strong>
+                        <span style="color: var(--text-secondary); font-size: 0.83rem; line-height: 1.4; display: block;">👉 官方答覆：${faq.answer}</span>
+                    </li>
+                `;
+            });
+
+            if (examFocusList.innerHTML === '') {
+                examFocusList.innerHTML = '<li>無考點與 FAQ 分析。</li>';
+            }
+        }
+
+        // 從教學直接進入挑戰
+        function startCategoryPractice() {
+            if (currentCategory === '全部題庫') {
+                currentCategory = '政府採購全生命週期概論';
+                renderCategories();
+            }
+            switchSystemMode('practice');
+        }
+
+
+
+        // 提交模擬考
+        function submitMockExam() {
+            if (examSubmitted) return;
+            
+            if (confirm("您確定要提交試卷嗎？提交後將無法修改答案。")) {
+                examSubmitted = true;
+                if (examTimerInterval) {
+                    clearInterval(examTimerInterval);
+                    examTimerInterval = null;
+                }
+                
+                // 計算分數
+                let score = 0;
+                let correctCount = 0;
+                const total = examQuestions.length;
+                const eachPoints = 100 / total;
+
+                examQuestions.forEach(q => {
+                    const userAns = examAnswers[q.id];
+                    const isCorrect = (userAns === q.correct_answer || (q.correct_answer === true && userAns === 1) || (q.correct_answer === false && userAns === 2));
+                    if (isCorrect) {
+                        correctCount++;
+                    } else {
+                        addToErrors(q.id); // 錯題寫入錯題本
+                    }
+                });
+                
+                score = correctCount * eachPoints;
+
+                // 渲染一個漂亮的結果總覽區
+                renderExamResults(score, correctCount, total);
+            }
+        }
+
+        // 渲染模擬考成績結果頁
+        function renderExamResults(score, correctCount, total) {
+            // 1. 先呼叫 renderQuestion 渲染所有已答題目的狀態與解析
+            renderQuestion();
+            
+            // 2. 在最上方插入成績總覽卡片
+            const quizContainer = document.getElementById('quizContainer');
+            const scoreCard = document.createElement('div');
+            scoreCard.className = 'card score-summary-card';
+            scoreCard.style.width = '100%';
+            scoreCard.style.maxWidth = '800px';
+            scoreCard.style.marginBottom = '2rem';
+            scoreCard.style.background = score >= 70 
+                ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.2))' 
+                : 'linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.2))';
+            scoreCard.style.border = `1px solid ${score >= 70 ? 'var(--success)' : 'var(--error)'}`;
+            scoreCard.style.textAlign = 'center';
+            scoreCard.style.padding = '2.5rem 1.5rem';
+            
+            const statusText = score >= 70 ? "🎉 恭喜及格！達到政府採購專業人員標準。" : "😅 不及格，仍需多加練習！";
+            const scoreColor = score >= 70 ? 'var(--success)' : 'var(--error)';
+            const eachPoints = 100 / total;
+            
+            scoreCard.innerHTML = `
+                <span class="badge-tag" style="background: ${score >= 70 ? 'var(--success)' : 'var(--error)'}; color: #fff;">考試成績結算</span>
+                <div style="font-size: 3.5rem; font-weight: 900; color: ${scoreColor}; margin-top: 1rem; margin-bottom: 0.5rem;">
+                    ${score.toFixed(0)} 分
+                </div>
+                <div style="font-size: 1.2rem; color: var(--text-primary); font-weight: 600; margin-bottom: 1rem;">
+                    ${statusText}
+                </div>
+                <div style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
+                    答對題數：<strong>${correctCount}</strong> 題 / 總題數：<strong>${total}</strong> 題 (每題 ${eachPoints.toFixed(1)} 分)
+                </div>
+                <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                    <button class="action-btn primary" onclick="initMockExam()" style="min-width: 160px;">
+                        <i class="fa-solid fa-rotate-right"></i> 重新開始新考試
+                    </button>
+                    <button class="action-btn" onclick="switchSystemMode('practice')" style="min-width: 160px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--card-border);">
+                        <i class="fa-solid fa-graduation-cap"></i> 回到順序練習
+                    </button>
+                </div>
+            `;
+            
+            if (quizContainer.firstChild) {
+                quizContainer.insertBefore(scoreCard, quizContainer.firstChild);
+            } else {
+                quizContainer.appendChild(scoreCard);
+            }
+            
+            // 捲動到最上方
+            quizContainer.scrollIntoView({ behavior: 'smooth' });
+        }
+
+
+
+        // 錯題本資料存取
+        function addToErrors(id) {
+            if (!userErrors.includes(id)) {
+                userErrors.push(id);
+                localStorage.setItem('wrong_answers', JSON.stringify(userErrors));
+            }
+        }
+
+        function removeFromErrors(id) {
+            userErrors = userErrors.filter(errId => errId !== id);
+            localStorage.setItem('wrong_answers', JSON.stringify(userErrors));
+        }
+
+        // 題目導覽
+        function navigateQuestion(step) {
+            const questionsList = currentMode === 'exam' ? examQuestions : filteredQuestions;
+            if (questionsList.length === 0) return;
+
+            currentIndex += step;
+            if (currentIndex < 0) currentIndex = questionsList.length - 1;
+            if (currentIndex >= questionsList.length) currentIndex = 0;
+            renderQuestion();
+        }
+
+        function checkActiveAnswer() {
+            const questionsList = currentMode === 'exam' ? examQuestions : filteredQuestions;
+            const q = questionsList[currentIndex];
+            if (q) {
+                const amendmentDiv = document.getElementById(`amendment-${q.id}`);
+                const explanationDiv = document.getElementById(`explanation-${q.id}`);
+                if (q.has_amendment && amendmentDiv) {
+                    amendmentDiv.style.display = 'flex';
+                }
+                if (explanationDiv) {
+                    explanationDiv.style.display = 'block';
+                }
+            }
+        }
+
+        // 傳送聊天訊息給 Gemini API (加入本地法規 RAG 知識庫上下文)
+        async function sendChatMessage() {
+            const inputEl = document.getElementById('chatInput');
+            const message = inputEl.value.trim();
+            if (!message) return;
+
+            const apiKey = localStorage.getItem('gemini_api_key');
+            if (!apiKey) {
+                alert("請先在上方輸入並儲存您的 Gemini API Key！");
+                return;
+            }
+
+            // 1. 渲染使用者訊息
+            appendChatBubble(message, 'user');
+            inputEl.value = '';
+
+            // 2. 渲染 AI 載入狀態
+            const loadingBubble = appendChatBubble('AI 法律顧問正在查閱採購法條文，請稍候...', 'ai');
+
+            // 3. 取得本地 RAG 參考資料 (對比用戶輸入關鍵字與條文庫)
+            let ragContext = "";
+            const matchedLaws = [];
+            
+            // 掃描 tutorial_db
+            Object.keys(window.tutorial_db || {}).forEach(topic => {
+                const topicData = window.tutorial_db[topic];
+                topicData.core_laws.forEach(law => {
+                    if (message.includes(law.article.replace("政府採購法", "").trim())) {
+                        matchedLaws.push(`【${law.article}】\n條文內容：${law.content}\n實務解析：${law.note}`);
+                    }
+                });
+            });
+
+            // 掃描 laws_db (精確法條庫)
+            (window.laws_db || []).forEach(law => {
+                const cleanArticle = law.article.replace(/\s+/g, "");
+                const queryClean = message.replace(/\s+/g, "");
+                if (queryClean.includes(cleanArticle) || queryClean.includes(cleanArticle.replace("第", "")) || queryClean.includes(law.title)) {
+                    matchedLaws.push(`【政府採購法 ${law.article} - ${law.title}】\n條文內容：${law.content}`);
+                }
+            });
+
+            // 掃描 explain_letters_db (施行細則與解釋函令庫)
+            (window.explain_letters_db || []).forEach(item => {
+                const queryClean = message.replace(/\s+/g, "");
+                const titleClean = (item.title || "").replace(/\s+/g, "");
+                const letterClean = (item.letter_no || "").replace(/\s+/g, "");
+                if (queryClean.includes(titleClean) || (item.letter_no && queryClean.includes(letterClean)) || 
+                    (item.category && queryClean.includes(item.category)) || 
+                    (item.content && item.content.split("").some((c, idx) => queryClean.includes(c) && idx % 12 === 0 && queryClean.length > 5))) {
+                    const tag = item.letter_no ? `解釋函令 [${item.letter_no}]` : (item.category ? `${item.category} [${item.title}]` : `施行細則 [${item.title}]`);
+                    matchedLaws.push(`【${tag}】\n內容：${item.content}`);
+                }
+            });
+
+            // 掃描 faq_db (常見問答庫)
+            (window.faq_db || []).forEach(item => {
+                const queryClean = message.replace(/\s+/g, "");
+                const qClean = item.question.replace(/\s+/g, "");
+                if (queryClean.includes(qClean) || qClean.split("").some((c, idx) => queryClean.includes(c) && idx % 10 === 0 && queryClean.length > 5)) {
+                    matchedLaws.push(`【常見問題Q&A - ${item.question}】\n答覆：${item.answer}`);
+                }
+            });
+
+            if (matchedLaws.length > 0) {
+                ragContext = `\n[本地精確檢索到的採購法條文、細則、解釋函令與常見問答對照]:\n${matchedLaws.slice(0, 6).join("\n\n")}\n`;
+            }
+
+            // 4. 呼叫 Gemini API
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+            const systemPrompt = `你是一位精通中華民國《政府採購法》、其施行細則以及相關招標辦法的法律專家顧問。
+請用專業、詳盡且清晰的繁體中文回答使用者的問題。
+特別注意：
+1. 你的回答必須明確引述政府採購法之法規條號（如採購法第50條、第101條等）。
+2. 在涉及到小額採購、公告金額等門檻金額時，請務必說明「112年1月1日起施行」的新舊法差異：
+   - 小額採購限額：舊法為 10 萬元以下，新法調高至 15 萬元以下。
+   - 公告金額：舊法為 100 萬元以上，新法調高至 150 萬元以上。
+   - 查核金額：工程及財物調高至 1.5 億元，勞務調高至 4,000 萬元。
+   - 巨額採購：工程調高至 4 億元，財物調高至 2 億元，勞務調高至 8,000 萬元。
+3. 語氣請保持客觀、專業、溫和。
+${ragContext}`;
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        contents: [
+                            {
+                                role: 'user',
+                                parts: [
+                                    { text: `System context:\n${systemPrompt}\n\nUser Question:\n${message}` }
+                                ]
+                            }
+                        ]
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API 請求失敗，狀態碼: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const aiResponse = data.candidates[0].content.parts[0].text;
+                
+                // 替換載入中訊息為真正回覆
+                loadingBubble.innerText = aiResponse;
+            } catch (err) {
+                loadingBubble.innerHTML = `<span style="color: var(--error);">[錯誤] 連線失敗：${err.message}。請確認您的 API 金鑰是否輸入正確、網路連線正常或 API 額度是否耗盡。</span>`;
+            }
+
+            // 滾動對話框到底部
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function appendChatBubble(text, sender) {
+            const container = document.getElementById('chatMessages');
+            const bubble = document.createElement('div');
+            bubble.className = `chat-bubble ${sender}`;
+            bubble.innerText = text;
+            container.appendChild(bubble);
+            container.scrollTop = container.scrollHeight;
+            return bubble;
+        }
+
+        function handleChatKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendChatMessage();
+            }
+        }
+
+        // =====================================================================
+        // AI 題目深度解析 (需要 Gemini API Key)
+        // =====================================================================
+        async function requestAiExplanation(questionId) {
+            const list = currentMode === 'exam' ? examQuestions : filteredQuestions;
+            const q = list.find(item => item.id === questionId) || (window.questions_db || []).find(item => item.id === questionId);
+            if (!q) {
+                alert('找不到該題目的資料！');
+                return;
+            }
+
+            const questionText = q.question_text || '';
+            const optionsText = (q.options || []).map((o, idx) => `${idx + 1}. ${o}`).join(' ');
+            const correctAnswer = q.correct_answer;
+
+            const apiKey = localStorage.getItem('gemini_api_key');
+            if (!apiKey) {
+                alert('請先在「設定」頁面輸入並儲存您的 Gemini API Key，才能使用 AI 深度解析功能！');
+                return;
+            }
+
+            const btn = document.getElementById(`ai-explain-btn-${questionId}`);
+            const textDiv = document.getElementById(`explanation-text-${questionId}`);
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> AI 正在查閱採購法條文中...';
+            }
+
+            // 從 laws_db 找相關條文作為 RAG 背景
+            let ragLaws = '';
+            const keywords = questionText.split(/[，。？！\s]+/).filter(k => k.length >= 2);
+            const matchedRag = (window.laws_db || []).filter(law =>
+                keywords.some(k => law.content.includes(k) || law.title.includes(k))
+            ).slice(0, 4);
+            if (matchedRag.length > 0) {
+                ragLaws = '\n[相關法條參考]\n' + matchedRag.map(l => `${l.article} ${l.title}：${l.content}`).join('\n');
+            }
+
+            const prompt = `你是一位精通《政府採購法》及相關子法（施行細則、評選辦法、技術服務辦法等）的台灣法律專家。
+請針對以下考試題目，提供完整、詳細的解析，必須引用具體法條。
+
+【考試題目】
+${questionText}
+
+【各選項】
+${optionsText}
+
+【正確答案】第 ${correctAnswer} 選項
+
+${ragLaws}
+
+請依以下格式回覆（使用繁體中文）：
+
+📋 **解析**
+（說明為何第${correctAnswer}選項正確，並引用具體法條，格式如：依政府採購法第XX條第X項規定：「...」）
+
+❌ **其他選項為何錯誤**
+（逐一說明其他選項的錯誤原因，引用具體條文）
+
+📖 **相關法條條文**
+（列出本題涉及的完整法條名稱、條號及重要條文內容）
+
+💡 **考試記憶技巧**
+（提供1-2個幫助記憶此知識點的技巧）`;
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                        generationConfig: { temperature: 0.2, maxOutputTokens: 1500 }
+                    })
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                const aiText = data.candidates[0].content.parts[0].text;
+
+                // 將 Markdown 格式轉為 HTML
+                const htmlText = aiText
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/^📋/gm, '<div style="margin-top:0.75rem; font-weight:bold; color:#38bdf8;">📋')
+                    .replace(/^❌/gm, '<div style="margin-top:0.75rem; font-weight:bold; color:#f87171;">❌')
+                    .replace(/^📖/gm, '<div style="margin-top:0.75rem; font-weight:bold; color:#34d399;">📖')
+                    .replace(/^💡/gm, '<div style="margin-top:0.75rem; font-weight:bold; color:#fbbf24;">💡')
+                    .replace(/\n/g, '<br>');
+
+                if (textDiv) {
+                    textDiv.innerHTML = `<div style="background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.3); border-radius: 0.5rem; padding: 1rem; line-height: 1.7;">${htmlText}</div>`;
+                }
+                if (btn) {
+                    btn.innerHTML = '<i class="fa-solid fa-check"></i> 已載入 AI 深度解析';
+                    btn.style.opacity = '0.5';
+                    btn.disabled = true;
+                }
+            } catch (err) {
+                if (textDiv) textDiv.innerHTML = `<span style="color:var(--error)">[AI 解析失敗] ${err.message}。請確認 API Key 及網路狀態。</span>`;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> 重試 AI 深度解析';
+                }
+            }
+        }
+
+        // =====================================================================
+        // 投影片教學模式生成器
+        // =====================================================================
+        function generateSlidePresentation() {
+            const cat = currentCategory === '全部題庫' ? '政府採購全生命週期概論' : currentCategory;
+            const tData = window.tutorial_db[cat];
+            if (!tData) {
+                alert('目前章節尚無講義資料，請先選擇一個章節。');
+                return;
+            }
+
+            const takeaways = tData.key_takeaways || [];
+            const coreLaws = tData.core_laws || [];
+            const examFocus = tData.exam_focus || [];
+
+            // 將重點拆成多張投影片（每張最多4個條目）
+            const chunkArray = (arr, size) => {
+                const chunks = [];
+                for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
+                return chunks;
+            };
+
+            const takeawayChunks = chunkArray(takeaways, 4);
+            const examFocusChunks = chunkArray(examFocus, 3);
+
+            // 生成投影片 HTML
+            let slidesHTML = '';
+
+            // 封面投影片
+            slidesHTML += `
+            <div class="slide active" id="slide-0">
+                <div class="slide-cover">
+                    <div class="slide-badge">政府採購法核心講義</div>
+                    <h1 class="slide-title-main">${cat}</h1>
+                    <p class="slide-subtitle">核心重點 · 法條速查 · 考點陷阱</p>
+                    <div class="slide-meta">共 ${1 + takeawayChunks.length + coreLaws.length + examFocusChunks.length + 1} 張投影片</div>
+                </div>
+            </div>`;
+
+            let slideIndex = 1;
+
+            // 核心重點投影片
+            takeawayChunks.forEach((chunk, i) => {
+                slidesHTML += `
+                <div class="slide" id="slide-${slideIndex}">
+                    <div class="slide-header">
+                        <div class="slide-num">核心大綱 ${i + 1}/${takeawayChunks.length}</div>
+                        <h2 class="slide-h2"><span class="icon-star">★</span> ${cat}</h2>
+                    </div>
+                    <div class="slide-body">
+                        <ul class="slide-list">
+                            ${chunk.map(item => `<li>${item}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>`;
+                slideIndex++;
+            });
+
+            // 核心法條投影片 (每條單獨一張)
+            coreLaws.forEach((law, i) => {
+                const isHot = law.note && law.note.startsWith('🔥');
+                slidesHTML += `
+                <div class="slide" id="slide-${slideIndex}">
+                    <div class="slide-header">
+                        <div class="slide-num">核心法條 ${i + 1}/${coreLaws.length}</div>
+                        <h2 class="slide-h2"><span class="icon-book">§</span> ${law.article}</h2>
+                    </div>
+                    <div class="slide-body">
+                        <div class="law-card ${isHot ? 'law-hot' : ''}"><div class="law-content">${law.content}</div></div>
+                        <div class="law-note">${law.note || ''}</div>
+                    </div>
+                </div>`;
+                slideIndex++;
+            });
+
+            // 考點陷阱投影片
+            examFocusChunks.forEach((chunk, i) => {
+                slidesHTML += `
+                <div class="slide" id="slide-${slideIndex}">
+                    <div class="slide-header">
+                        <div class="slide-num">常考考點 ${i + 1}/${examFocusChunks.length}</div>
+                        <h2 class="slide-h2"><span class="icon-warn">⚠</span> 考試陷阱解析</h2>
+                    </div>
+                    <div class="slide-body">
+                        <ul class="slide-list exam-list">
+                            ${chunk.map(item => `<li>${item}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>`;
+                slideIndex++;
+            });
+
+            // 結尾投影片
+            const totalSlides = slideIndex + 1;
+            slidesHTML += `
+            <div class="slide" id="slide-${slideIndex}">
+                <div class="slide-cover">
+                    <div class="slide-badge" style="background: linear-gradient(135deg, #10b981, #059669);">本章學習完成</div>
+                    <h1 class="slide-title-main" style="font-size: 2.5rem;">準備好了嗎？</h1>
+                    <p class="slide-subtitle">關閉此視窗後，立即挑戰「${cat}」章節的模擬考題！</p>
+                    <div class="slide-meta">加油！你可以的 💪</div>
+                </div>
+            </div>`;
+
+            const totalSlidesCount = slideIndex + 1;
+
+            const fullHTML = `<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${cat} — 投影片教學模式</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #060913;
+    --card: rgba(15, 22, 42, 0.95);
+    --accent: #38bdf8;
+    --purple: #818cf8;
+    --green: #34d399;
+    --yellow: #fbbf24;
+    --red: #f87171;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --border: rgba(56,189,248,0.15);
+  }
+  body {
+    font-family: 'Noto Sans TC', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  /* SLIDES */
+  .slide-wrapper {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    transform: translateX(60px);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    padding: 3rem 4rem;
+    overflow-y: auto;
+  }
+  .slide.active {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: all;
+  }
+  .slide.exit-left {
+    opacity: 0;
+    transform: translateX(-60px);
+  }
+  /* COVER */
+  .slide-cover {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    text-align: center;
+    gap: 1.5rem;
+    background: radial-gradient(ellipse at 50% 30%, rgba(99,102,241,0.2) 0%, transparent 60%);
+  }
+  .slide-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    padding: 0.4rem 1.5rem;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+  .slide-title-main {
+    font-size: clamp(1.8rem, 4vw, 3.5rem);
+    font-weight: 900;
+    background: linear-gradient(135deg, #38bdf8, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1.2;
+  }
+  .slide-subtitle { font-size: 1.2rem; color: var(--muted); }
+  .slide-meta { font-size: 0.85rem; color: var(--muted); opacity: 0.7; }
+  /* CONTENT SLIDES */
+  .slide-header {
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2rem;
+  }
+  .slide-num {
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 0.5rem;
+  }
+  .slide-h2 {
+    font-size: clamp(1.3rem, 2.5vw, 2rem);
+    font-weight: 800;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .icon-star { color: var(--yellow); font-size: 1.4rem; }
+  .icon-book { color: var(--accent); font-size: 1.6rem; font-style: normal; }
+  .icon-warn { color: var(--red); font-size: 1.3rem; }
+  .slide-body { flex: 1; }
+  /* LIST */
+  .slide-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+  .slide-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    font-size: clamp(0.95rem, 1.5vw, 1.15rem);
+    line-height: 1.6;
+    padding: 0.85rem 1.1rem;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 0.6rem;
+    color: var(--text);
+  }
+  .slide-list li::before {
+    content: '▶';
+    color: var(--accent);
+    font-size: 0.7rem;
+    margin-top: 0.3rem;
+    flex-shrink: 0;
+  }
+  .exam-list li {
+    border-color: rgba(248,113,113,0.3);
+    background: rgba(248,113,113,0.06);
+    color: var(--yellow);
+  }
+  .exam-list li::before { color: var(--red); content: '⚠'; font-size: 0.9rem; }
+  /* LAW CARD */
+  .law-card {
+    background: rgba(56,189,248,0.06);
+    border: 1px solid rgba(56,189,248,0.25);
+    border-radius: 0.75rem;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  .law-card.law-hot {
+    background: rgba(251,191,36,0.06);
+    border-color: rgba(251,191,36,0.3);
+  }
+  .law-content {
+    font-size: clamp(0.9rem, 1.4vw, 1.05rem);
+    line-height: 1.8;
+    color: var(--text);
+  }
+  .law-note {
+    font-size: 0.9rem;
+    color: var(--yellow);
+    font-style: italic;
+    padding: 0.75rem 1rem;
+    background: rgba(251,191,36,0.08);
+    border-radius: 0.5rem;
+    border-left: 3px solid var(--yellow);
+    line-height: 1.6;
+  }
+  /* CONTROLS */
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 2rem;
+    background: rgba(10,15,30,0.95);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .ctrl-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.5rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.05);
+    color: var(--text);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+  .ctrl-btn:hover { background: rgba(56,189,248,0.15); border-color: var(--accent); }
+  .ctrl-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .ctrl-btn.primary { background: linear-gradient(135deg, #6366f1, #8b5cf6); border-color: transparent; }
+  .progress-bar-wrap {
+    flex: 1;
+    margin: 0 1.5rem;
+    height: 4px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--purple));
+    border-radius: 99px;
+    transition: width 0.4s ease;
+  }
+  .slide-counter {
+    font-size: 0.8rem;
+    color: var(--muted);
+    min-width: 60px;
+    text-align: center;
+  }
+  /* KEYBOARD HINT */
+  .kb-hint {
+    position: fixed;
+    bottom: 5rem;
+    right: 1.5rem;
+    font-size: 0.7rem;
+    color: var(--muted);
+    opacity: 0.5;
+    pointer-events: none;
+  }
+  @media (max-width: 640px) {
+    .slide { padding: 1.5rem 1.25rem; }
+    .controls { padding: 0.6rem 0.75rem; }
+    .ctrl-btn { padding: 0.5rem 0.9rem; font-size: 0.8rem; }
+    .slide-h2 { font-size: 1.1rem; }
+  }
+</style>
+</head>
+<body>
+  <div class="slide-wrapper">
+    ${slidesHTML}
+  </div>
+  <div class="controls">
+    <button class="ctrl-btn" id="prevSlide" onclick="changeSlide(-1)" disabled>&#8592; 上一頁</button>
+    <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1; margin: 0 1rem;">
+      <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressFill" style="width: ${100/totalSlidesCount}%"></div></div>
+      <span class="slide-counter" id="slideCounter">1 / ${totalSlidesCount}</span>
+    </div>
+    <button class="ctrl-btn primary" id="nextSlide" onclick="changeSlide(1)">下一頁 &#8594;</button>
+  </div>
+  <div class="kb-hint">← → 鍵盤方向鍵 切換頁面</div>
+  <script>
+    let current = 0;
+    const total = ${totalSlidesCount};
+    const slides = document.querySelectorAll('.slide');
+
+    function changeSlide(dir) {
+      const next = current + dir;
+      if (next < 0 || next >= total) return;
+      slides[current].classList.remove('active');
+      slides[current].classList.add(dir > 0 ? 'exit-left' : 'exit-right');
+      setTimeout(() => slides[current].classList.remove('exit-left', 'exit-right'), 400);
+      current = next;
+      slides[current].classList.add('active');
+      document.getElementById('prevSlide').disabled = current === 0;
+      document.getElementById('nextSlide').disabled = current === total - 1;
+      document.getElementById('slideCounter').textContent = (current + 1) + ' / ' + total;
+      document.getElementById('progressFill').style.width = ((current + 1) / total * 100) + '%';
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') changeSlide(1);
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') changeSlide(-1);
+    });
+  <\/script>
+</body>
+</html>`;
+
+            const blob = new Blob([fullHTML], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            window.open(url, '_blank');
+        }
+
+    </script>
+</body>
+</html>

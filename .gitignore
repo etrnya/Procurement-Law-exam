@@ -1,0 +1,27 @@
+# Dependency directories
+node_modules/
+
+# Local raw questions downloads
+downloads/
+*.pdf
+*.doc
+*.docx
+*.odt
+
+# Python cache and environment files
+__pycache__/
+*.pyc
+.env
+.venv/
+env/
+venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Editor / OS metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.gemini*
+*.log
