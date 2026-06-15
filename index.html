@@ -708,8 +708,7 @@
                                 const isGeneric = !exp || exp.includes('相關規定辦理') || exp.length < 20;
                                 return `<button 
                                     id="ai-explain-btn-${q.id}"
-                                    onclick="requestAiExplanation('${q.id}', \`${(q.question_text || '').replace(/`/g, "'").replace(/"/g, "'").replace(/
-/g, ' ').replace(//g, '')}\`, \`${(q.options || []).map((o,i) => (i+1)+'. '+o).join(' ').replace(/`/g, "'").replace(/"/g, "'")}\`, ${q.correct_answer})"
+                                    onclick="requestAiExplanation('${q.id}', \`${(q.question_text || '').replace(/`/g, "'").replace(/"/g, "'").replace(/[\n\r]/g, ' ')}\`, \`${(q.options || []).map((o,i) => (i+1)+'. '+o).join(' ').replace(/`/g, "'").replace(/"/g, "'")}\`, ${q.correct_answer})"
                                     style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.85rem; padding: 0.55rem 1.1rem; background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2)); border: 1px solid rgba(139,92,246,0.5); border-radius: 0.5rem; color: #c4b5fd; font-size: 0.85rem; cursor: pointer; width: 100%; justify-content: center; transition: all 0.2s;"
                                     onmouseover="this.style.background='linear-gradient(135deg, rgba(99,102,241,0.4), rgba(139,92,246,0.4))'"
                                     onmouseout="this.style.background='linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2))'">
