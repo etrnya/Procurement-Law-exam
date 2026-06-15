@@ -716,6 +716,6 @@ body {
 }
 
 .topics-panel.collapsed .menu-title,
-.topics-panel.collapsed .topic-list {
+.topics-panel.collapsed .menu-list {
     display: none !important;
 }
