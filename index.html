@@ -223,6 +223,29 @@
                                 2. 本應用為純靜態 SPA (Single Page Application)，AI 功能直接發送請求至 Google 官方 API 端點。<br>
                                 3. 如果您還沒有 API Key，可以前往 <a href="https://aistudio.google.com/" target="_blank" style="color: var(--accent-blue); text-decoration: underline;">Google AI Studio</a> 免費申請。
                             </div>
+
+                            <div style="border-top: 1px solid var(--card-border); padding-top: 1.25rem; margin-top: 1rem;">
+                                <div class="question-text" style="font-size: 1.4rem; font-weight: bold; padding-bottom: 0.5rem; color: var(--accent-blue); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                                    <i class="fa-solid fa-arrows-rotate"></i> 本地知識庫一鍵更新
+                                </div>
+                                <p style="font-size: 0.95rem; line-height: 1.6; color: var(--text-secondary); margin-bottom: 1rem;">
+                                    本系統包含最核心的三個 RAG 資料來源：<strong>法令彙編</strong>、<strong>訓練教材</strong>與<strong>官方題庫</strong>。由於本系統採純前端無後端架構，為安全起見，請在終端機中運行以下一鍵自動更新腳本：
+                                </p>
+                                
+                                <div style="background: rgba(0, 0, 0, 0.25); border: 1px solid var(--card-border); border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                                    <code style="font-family: monospace; font-size: 0.95rem; color: var(--success); font-weight: bold;">python update_all_data.py</code>
+                                    <button class="action-btn" style="padding: 0.45rem 1rem; font-size: 0.8rem; background: rgba(56, 189, 248, 0.15); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.4);" onclick="copyUpdateCommand()">
+                                        <i class="fa-solid fa-copy"></i> 複製指令
+                                    </button>
+                                </div>
+
+                                <div style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.55; background: rgba(255,255,255,0.01); border-left: 3px solid var(--accent-blue); padding: 0.5rem 0.75rem;">
+                                    <strong>一鍵更新流程包括：</strong><br>
+                                    1. <strong>題庫更新</strong>：自動抓取並解析最新電子採購網 Word 題庫，比對新舊法條變更。<br>
+                                    2. <strong>教材與投影片更新</strong>：同步工程會教材大綱及 PDF 下載連結。<br>
+                                    3. <strong>法令彙編更新</strong>：即時連線法務部全國法規資料庫，同步最新的《政府採購法》與《政府採購法施行細則》條文，並更新解釋函令與錯誤態樣。
+                                </div>
+                            </div>
                         </div>
                     </div> <!-- 關閉 settingsCard -->
                 </div> <!-- 關閉 quiz-viewport -->
@@ -335,6 +358,11 @@
             const key = document.getElementById('apiKeyInput').value.trim();
             localStorage.setItem('gemini_api_key', key);
             alert("API 金鑰已成功儲存至本機！");
+        }
+
+        function copyUpdateCommand() {
+            navigator.clipboard.writeText("python update_all_data.py");
+            alert("已複製更新指令！請在本機終端機中運行：\npython update_all_data.py");
         }
 
         // 渲染章節分類清單 (獨立於左側全高區，帶有各章節動態題數標籤)

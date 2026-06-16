@@ -111,7 +111,7 @@ def main():
         existing_letters.append(exp)
         
     with open("explain_letters_db.js", "w", encoding="utf-8") as f:
-        f.write("# -*- coding: utf-8 -*-\n/* eslint-disable */\n")
+        f.write("/* eslint-disable */\n")
         f.write("/**\n * 政府採購法重要解釋函令、施行細則與採購錯誤態樣資料庫\n * 自動由政府採購法令彙編第35版提取\n */\n\n")
         f.write("const explain_letters_db = ")
         f.write(json.dumps(existing_letters, ensure_ascii=False, indent=4))
