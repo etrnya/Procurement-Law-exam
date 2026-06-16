@@ -1334,7 +1334,76 @@
             }
         }
 
-        // 傳送聊天訊息給 Gemini API (加入本地法規 RAG 知識庫上下文)
+        // =====================================================================
+        // Taiwan Legal RAG (TLR) 司法判決檢索系統 (Client-side RAG)
+        // =====================================================================
+        async function fetchTlrJudgments(query, maxResults = 2) {
+            const baseUrl = "https://tlr.dr-lawbot.com";
+            try {
+                console.log(`[TLR RAG] 正在向外部司法實務判決庫進行語意檢索: "${query}"...`);
+                
+                // 1. 搜尋判決 (POST /v1/search)
+                const searchResp = await fetch(`${baseUrl}/v1/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        search_type: "hybrid",
+                        max_results: maxResults
+                    })
+                });
+
+                if (!searchResp.ok) {
+                    throw new Error(`TLR Search 回應錯誤 (HTTP ${searchResp.status})`);
+                }
+
+                const searchData = await searchResp.json();
+                const results = searchData.results || [];
+                if (results.length === 0) {
+                    console.log("[TLR RAG] 檢索結果為空。");
+                    return [];
+                }
+
+                // 2. 對前幾筆結果，併行獲取全文摘要 (POST /v1/fulltext)
+                const judgments = await Promise.all(results.map(async (r) => {
+                    try {
+                        if (!r.doc_id || !r.result_token) return r;
+                        
+                        const ftResp = await fetch(`${baseUrl}/v1/fulltext`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                doc_id: r.doc_id,
+                                result_token: r.result_token
+                            })
+                        });
+
+                        if (ftResp.ok) {
+                            const ftData = await ftResp.json();
+                            r.fulltext = ftData.text_excerpt || "";
+                            r.cited_articles = ftData.cited_articles || [];
+                        }
+                    } catch (err) {
+                        console.warn(`[TLR RAG] 獲取判決全文摘要失敗 (doc_id: ${r.doc_id}):`, err);
+                    }
+                    return r;
+                }));
+
+                console.log(`[TLR RAG] 語意檢索完成，共取得 ${judgments.length} 筆判決資料。`);
+                return judgments;
+            } catch (err) {
+                console.warn("[TLR RAG] 司法判決檢索失敗 (可能為 CORS、網路斷線或伺服器異常)，將降級使用本地法規庫:", err);
+                return [];
+            }
+        }
+
+        // 傳送聊天訊息給 Gemini API (加入本地法規與 TLR 判決 RAG 知識庫上下文)
         async function sendChatMessage() {
             const inputEl = document.getElementById('chatInput');
             const message = inputEl.value.trim();
@@ -1350,8 +1419,8 @@
             appendChatBubble(message, 'user');
             inputEl.value = '';
 
-            // 2. 渲染 AI 載入狀態
-            const loadingBubble = appendChatBubble('AI 法律顧問正在查閱採購法條文，請稍候...', 'ai');
+            // 2. 渲染 AI 載入狀態 (提示包含外部判決檢索)
+            const loadingBubble = appendChatBubble('AI 法律顧問正在檢索司法實務判決與本地法規庫，請稍候...', 'ai');
 
             // 3. 取得本地 RAG 參考資料 (對比用戶輸入關鍵字與條文庫)
             let ragContext = "";
@@ -1402,6 +1471,21 @@
                 ragContext = `\n[本地精確檢索到的採購法條文、細則、解釋函令與常見問答對照]:\n${matchedLaws.slice(0, 6).join("\n\n")}\n`;
             }
 
+            // 3.5 呼叫 TLR RAG 檢索司法實務判決
+            let tlrContext = "";
+            let tlrJudgments = [];
+            try {
+                tlrJudgments = await fetchTlrJudgments(message, 2);
+                if (tlrJudgments && tlrJudgments.length > 0) {
+                    const tlrSections = tlrJudgments.map(j => {
+                        return `【中華民國法院實務判決 - ${j.citation_text}】\n法院與案號：${j.court_name}，${j.jdate}\n裁判摘要：${j.snippet}\n判決理由摘要：${j.fulltext || "（無全文摘要）"}\n引用法規條文：${(j.cited_articles || []).join(", ") || "無"}`;
+                    });
+                    tlrContext = `\n[外部司法實務判決檢索結果 (TLR RAG)]:\n${tlrSections.join("\n\n")}\n`;
+                }
+            } catch (tlrErr) {
+                console.warn("[TLR RAG] 諮詢對話判決檢索失敗:", tlrErr);
+            }
+
             // 4. 呼叫 Gemini API（自動降級：gemini-2.5-flash → gemini-2.0-flash）
             const systemPrompt = `你是一位精通中華民國《政府採購法》、其施行細則以及相關招標辦法的法律專家顧問。
 請用專業、詳盡且清晰的繁體中文回答使用者的問題。
@@ -1412,8 +1496,9 @@
    - 公告金額：舊法為 100 萬元以上，新法調高至 150 萬元以上。
    - 查核金額：工程及財物調高至 1.5 億元，勞務調高至 4,000 萬元。
    - 巨額採購：工程調高至 4 億元，財物調高至 2 億元，勞務調高至 8,000 萬元。
-3. 語氣請保持客觀、專業、溫和。
-${ragContext}`;
+3. 如果檢索結果中包含外部司法實務判決 (TLR RAG)，請結合法院的具體見解進行分析，並在說明中適度援引相關判決（例如：『參照○○法院○○年度○○字第○○號判決』）。
+4. 語氣請保持客觀、專業、溫和。
+${ragContext}${tlrContext}`;
 
             const CHAT_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
             let chatResponse, chatLastErr;
@@ -1448,11 +1533,29 @@ ${ragContext}`;
             try {
                 if (!chatResponse || !chatResponse.ok) throw chatLastErr || new Error('所有模型皆無法回應');
                 const data = await chatResponse.json();
-                const aiResponse = data.candidates[0].content.parts[0].text;
-                // 替換載入中訊息為真正回覆
-                loadingBubble.innerText = aiResponse;
+                let aiResponse = data.candidates[0].content.parts[0].text;
+                
+                // 如果有司法判決，自動在回答後方加上參考資料連結
+                if (tlrJudgments && tlrJudgments.length > 0) {
+                    aiResponse += "\n\n⚖️ **檢索參考司法判決：**";
+                    tlrJudgments.forEach(j => {
+                        aiResponse += `\n- [${j.citation_text}](${j.citation_url || '#'}) (${j.court_name})`;
+                    });
+                }
+
+                // 替換載入中訊息為真正回覆，並進行簡單的 Markdown 安全渲染
+                const escaped = aiResponse
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+                const htmlText = escaped
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" style="color:var(--accent-blue); text-decoration:underline; font-weight:500;">$1</a>')
+                    .replace(/\n/g, '<br>');
+                
+                loadingBubble.innerHTML = htmlText;
             } catch (err) {
-                loadingBubble.innerHTML = `<span style="color: var(--error);">[錯誤] 連線失敗：${err.message}。請確認您的 API 金鑰是否輸入正確、網路連線正常或 API 額度是否耗盡。</span>`;
+                loadingBubble.innerHTML = `<span style="color: var(--error);">[錯誤] 連線失敗：${err.message}。請確認您的 Gemini API 金鑰是否輸入正確、網路連線正常或 API 額度是否耗盡。</span>`;
             }
 
             // 滾動對話框到底部
@@ -1464,7 +1567,21 @@ ${ragContext}`;
             const container = document.getElementById('chatMessages');
             const bubble = document.createElement('div');
             bubble.className = `chat-bubble ${sender}`;
-            bubble.innerText = text;
+            
+            if (sender === 'ai') {
+                const escaped = text
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+                const htmlText = escaped
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" style="color:var(--accent-blue); text-decoration:underline; font-weight:500;">$1</a>')
+                    .replace(/\n/g, '<br>');
+                bubble.innerHTML = htmlText;
+            } else {
+                bubble.innerText = text;
+            }
+            
             container.appendChild(bubble);
             container.scrollTop = container.scrollHeight;
             return bubble;
@@ -1501,10 +1618,29 @@ ${ragContext}`;
             const textDiv = document.getElementById(`explanation-text-${questionId}`);
             if (btn) {
                 btn.disabled = true;
-                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> AI 正在查閱採購法條文中...';
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> TLR 正在進行判決語意檢索...';
             }
 
-            // 從 laws_db 找相關條文作為 RAG 背景
+            // 1. 呼叫 TLR RAG 檢索相關實務判決
+            let tlrLaws = '';
+            let tlrJudgments = [];
+            try {
+                tlrJudgments = await fetchTlrJudgments(questionText, 2);
+                if (tlrJudgments && tlrJudgments.length > 0) {
+                    const tlrSections = tlrJudgments.map(j => {
+                        return `【中華民國法院實務判決 - ${j.citation_text}】\n法院與案號：${j.court_name}，${j.jdate}\n裁判摘要：${j.snippet}\n判決理由摘要：${j.fulltext || "（無全文摘要）"}\n引用法規條文：${(j.cited_articles || []).join(", ") || "無"}`;
+                    });
+                    tlrLaws = '\n[相關法院實務判決參考 (TLR RAG)]\n' + tlrSections.join('\n\n') + '\n';
+                }
+            } catch (tlrErr) {
+                console.warn("[TLR RAG] 深度解析檢索判決失敗:", tlrErr);
+            }
+
+            if (btn) {
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> AI 正在查閱採購法條文...';
+            }
+
+            // 2. 從 laws_db 找相關條文作為本地 RAG 背景
             let ragLaws = '';
             const keywords = questionText.split(/[，。？！\s]+/).filter(k => k.length >= 2);
             const matchedRag = (window.laws_db || []).filter(law =>
@@ -1526,11 +1662,12 @@ ${optionsText}
 【正確答案】第 ${correctAnswer} 選項
 
 ${ragLaws}
+${tlrLaws}
 
 請依以下格式回覆（使用繁體中文）：
 
 📋 **解析**
-（說明為何第${correctAnswer}選項正確，並引用具體法條，格式如：依政府採購法第XX條第X項規定：「...」）
+（說明為何第${correctAnswer}選項正確，並引用具體法條，格式如：依政府採購法第XX條第X項規定：「...」；若有適用之相關法院判決，請一併說明其裁判見解）
 
 ❌ **其他選項為何錯誤**
 （逐一說明其他選項的錯誤原因，引用具體條文）
@@ -1597,12 +1734,10 @@ ${ragLaws}
                 const aiText = data.candidates[0].content.parts[0].text;
 
                 // 將 Markdown 格式轉為 HTML
-                // 先 HTML escape 原始文字，防止 AI 回傳的法條比較符 < > & 被當作 HTML 標籤
                 const escaped = aiText
                     .replace(/&/g, '&amp;')
                     .replace(/</g, '&lt;')
                     .replace(/>/g, '&gt;');
-                // 再套 Markdown 格式轉換（此時 < > 已安全，自行加入的 <strong> <br> <div> 不受影響）
                 const htmlText = escaped
                     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
                     .replace(/^📋/gm, '<div style="margin-top:0.75rem; font-weight:bold; color:#38bdf8;">📋')
@@ -1611,8 +1746,29 @@ ${ragLaws}
                     .replace(/^💡/gm, '<div style="margin-top:0.75rem; font-weight:bold; color:#fbbf24;">💡')
                     .replace(/\n/g, '<br>');
 
+                // 生成司法實務判決參考區塊
+                let judgmentLinks = '';
+                if (tlrJudgments && tlrJudgments.length > 0) {
+                    judgmentLinks = '<div style="margin-top:1.2rem; padding-top:0.9rem; border-top:1px dashed rgba(255,255,255,0.15);">';
+                    judgmentLinks += '<div style="font-weight:bold; color:#a855f7; margin-bottom:0.6rem; font-size:0.92rem;"><i class="fa-solid fa-scale-balanced"></i> 參考司法實務判決 (TLR RAG)</div>';
+                    tlrJudgments.forEach(j => {
+                        judgmentLinks += `
+                            <div style="background: rgba(168,85,247,0.04); border: 1px solid rgba(168,85,247,0.2); border-radius: 0.35rem; padding: 0.75rem; margin-bottom: 0.6rem; font-size: 0.88rem;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem; flex-wrap:wrap; gap:0.25rem;">
+                                    <strong style="color:#e9d5ff;"><i class="fa-solid fa-gavel"></i> ${j.citation_text}</strong>
+                                    <a href="${j.citation_url || '#'}" target="_blank" style="color:#38bdf8; text-decoration:underline; font-size:0.78rem; display:inline-flex; align-items:center; gap:0.2rem;"><i class="fa-solid fa-up-right-from-square"></i> 查看裁判全文</a>
+                                </div>
+                                <div style="color:var(--text-secondary); line-height:1.45; margin-bottom:0.35rem;"><strong>法院案號：</strong>${j.court_name} (${j.jdate})</div>
+                                <div style="color:var(--text-secondary); line-height:1.45; margin-bottom:0.35rem;"><strong>裁判要旨：</strong>${j.snippet}</div>
+                                ${j.fulltext ? `<div style="color:var(--text-secondary); line-height:1.45; font-size:0.83rem; background:rgba(0,0,0,0.25); padding:0.5rem; border-radius:0.25rem; border-left:2px solid var(--accent-blue); margin-top:0.4rem;"><strong>理由片段：</strong>${j.fulltext}</div>` : ''}
+                            </div>
+                        `;
+                    });
+                    judgmentLinks += '</div>';
+                }
+
                 if (textDiv) {
-                    textDiv.innerHTML = `<div style="background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.3); border-radius: 0.5rem; padding: 1rem; line-height: 1.7;">${htmlText}</div>`;
+                    textDiv.innerHTML = `<div style="background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.3); border-radius: 0.5rem; padding: 1rem; line-height: 1.7;">${htmlText}${judgmentLinks}</div>`;
                 }
                 if (btn) {
                     btn.innerHTML = '<i class="fa-solid fa-check"></i> 已載入 AI 深度解析';
