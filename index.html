@@ -153,6 +153,11 @@
                                 <!-- 動態條文對照 -->
                             </div>
 
+                            <div class="explanation-title" style="margin-bottom: 0.5rem;"><i class="fa-solid fa-file-powerpoint"></i> 官方訓練教材與投影片 (Official Course Slides)</div>
+                            <div id="tOfficialSlides" style="display: flex; flex-direction: column; gap: 0.85rem; margin-bottom: 1.5rem;">
+                                <!-- 動態教材投影片連結 -->
+                            </div>
+
                             <div class="explanation-title" style="margin-bottom: 0.5rem;"><i class="fa-solid fa-circle-question"></i> 常考考點與陷阱 (Exam Focus)</div>
                             <ul id="tExamFocus" style="padding-left: 1.25rem; color: var(--warning); line-height: 1.6; margin-bottom: 1.5rem;">
                                 <!-- 動態考點 -->
@@ -242,13 +247,15 @@
     <!-- 載入題庫與講義資料庫 -->
     <script src="questions_db.js"></script>
     <script src="tutorial_db.js"></script>
+    <script src="pcc_slides_db.js"></script>
     <script src="laws_db.js"></script>
     <script src="explain_letters_db.js"></script>
     <script src="faq_db.js"></script>
     <script>
-        // 確保防禦性載入 questions_db, tutorial_db, laws_db, explain_letters_db, faq_db
+        // 確保防禦性載入 questions_db, tutorial_db, pcc_slides_db, laws_db, explain_letters_db, faq_db
         window.questions_db = typeof questions_db !== 'undefined' ? questions_db : [];
         window.tutorial_db = typeof tutorial_db !== 'undefined' ? tutorial_db : {};
+        window.pcc_slides_db = typeof pcc_slides_db !== 'undefined' ? pcc_slides_db : { basic: [], advanced: [] };
         window.laws_db = typeof laws_db !== 'undefined' ? laws_db : [];
         window.explain_letters_db = typeof explain_letters_db !== 'undefined' ? explain_letters_db : [];
         window.faq_db = typeof faq_db !== 'undefined' ? faq_db : [];
@@ -974,6 +981,51 @@
             };
         }
 
+        // 尋找此章節的官方推薦講義與投影片
+        function findOfficialSlidesForCategory(cat) {
+            const matched = { basic: [], advanced: [] };
+            if (!window.pcc_slides_db) return matched;
+            
+            // 定義主題關鍵字與官方檔名的對應關係
+            const keywordMap = {
+                '生命週期': ['全生命週期'],
+                '總則、招標及決標': ['採購法規', '採購程序', '錯誤採購'],
+                '履約管理及驗收': ['契約', '問題與對策', '錯誤採購'],
+                '罰則及附則': ['採購法規', '道德規範'],
+                '爭議': ['爭議'],
+                '底價': ['底價'],
+                '投標須知': ['投標須知', '招標文件'],
+                '契約': ['契約', '條約'],
+                '最有利': ['最有利', '評選'],
+                '電子採購': ['電子採購'],
+                '工程及技術': ['工程', '技術服務'],
+                '財物及勞務': ['財物', '勞務']
+            };
+            
+            let keywords = [];
+            for (const [key, list] of Object.entries(keywordMap)) {
+                if (cat.includes(key)) {
+                    keywords = keywords.concat(list);
+                }
+            }
+            
+            if (keywords.length === 0) {
+                keywords = [cat.substring(0, 4)];
+            }
+            
+            (window.pcc_slides_db.basic || []).forEach(item => {
+                const hasMatch = keywords.some(k => item.topic.includes(k));
+                if (hasMatch) matched.basic.push(item);
+            });
+            
+            (window.pcc_slides_db.advanced || []).forEach(item => {
+                const hasMatch = keywords.some(k => item.topic.includes(k));
+                if (hasMatch) matched.advanced.push(item);
+            });
+            
+            return matched;
+        }
+
         // 渲染講義內容
         function renderTutorial() {
             const cat = currentCategory === '全部題庫' ? '政府採購全生命週期概論' : currentCategory;
@@ -1051,6 +1103,70 @@
 
             if (coreLawsDiv.innerHTML === '') {
                 coreLawsDiv.innerHTML = '<div style="color: var(--text-secondary);">本章節暫無相關核心條文資料。</div>';
+            }
+
+            // 2.5. 官方訓練教材投影片 (整合 pcc_slides_db)
+            const officialSlidesDiv = document.getElementById('tOfficialSlides');
+            if (officialSlidesDiv) {
+                officialSlidesDiv.innerHTML = '';
+                const slideData = findOfficialSlidesForCategory(cat);
+                
+                let slideHtml = '';
+                
+                // 渲染基礎課程
+                if (slideData.basic && slideData.basic.length > 0) {
+                    slideHtml += `<div style="font-weight: bold; color: var(--accent-blue); font-size: 0.9rem; margin-bottom: 0.35rem;"><i class="fa-solid fa-graduation-cap"></i> 採購專業人員 - 基礎課程教材</div>`;
+                    slideData.basic.forEach(topic => {
+                        slideHtml += `<div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); padding: 0.85rem; border-radius: 0.5rem; margin-bottom: 0.5rem;">
+                            <div style="font-weight: bold; font-size: 0.9rem; margin-bottom: 0.4rem; color: var(--text-primary);">${topic.topic}</div>
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">`;
+                        topic.files.forEach(f => {
+                            let icon = 'fa-file';
+                            let btnColor = 'rgba(255, 255, 255, 0.1)';
+                            let textColor = 'var(--text-primary)';
+                            if (f.ext === 'pdf') { icon = 'fa-file-pdf'; btnColor = 'rgba(239, 68, 68, 0.15)'; textColor = '#f87171'; }
+                            else if (f.ext === 'pptx' || f.ext === 'ppt') { icon = 'fa-file-powerpoint'; btnColor = 'rgba(249, 115, 22, 0.15)'; textColor = '#fb923c'; }
+                            else if (f.ext === 'docx' || f.ext === 'doc') { icon = 'fa-file-word'; btnColor = 'rgba(59, 130, 246, 0.15)'; textColor = '#60a5fa'; }
+                            
+                            slideHtml += `
+                                <a href="${f.url}" target="_blank" style="display: flex; align-items: center; gap: 0.3rem; padding: 0.35rem 0.75rem; background: ${btnColor}; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0.25rem; font-size: 0.78rem; text-decoration: none; color: ${textColor}; transition: all 0.2s;" onmouseover="this.style.opacity=0.8" onmouseout="this.style.opacity=1">
+                                    <i class="fa-solid ${icon}"></i> ${f.ext.toUpperCase()} 下載
+                                </a>
+                            `;
+                        });
+                        slideHtml += `</div></div>`;
+                    });
+                }
+                
+                // 渲染進階課程
+                if (slideData.advanced && slideData.advanced.length > 0) {
+                    slideHtml += `<div style="font-weight: bold; color: #a855f7; font-size: 0.9rem; margin-top: 0.75rem; margin-bottom: 0.35rem;"><i class="fa-solid fa-award"></i> 採購專業人員 - 進階課程大綱</div>`;
+                    slideData.advanced.forEach(topic => {
+                        slideHtml += `<div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); padding: 0.85rem; border-radius: 0.5rem; margin-bottom: 0.5rem;">
+                            <div style="font-weight: bold; font-size: 0.9rem; margin-bottom: 0.4rem; color: var(--text-primary);">${topic.topic}</div>
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">`;
+                        topic.files.forEach(f => {
+                            let icon = 'fa-file';
+                            let btnColor = 'rgba(255, 255, 255, 0.1)';
+                            let textColor = 'var(--text-primary)';
+                            if (f.ext === 'pdf') { icon = 'fa-file-pdf'; btnColor = 'rgba(239, 68, 68, 0.15)'; textColor = '#f87171'; }
+                            else if (f.ext === 'pptx' || f.ext === 'ppt') { icon = 'fa-file-powerpoint'; btnColor = 'rgba(249, 115, 22, 0.15)'; textColor = '#fb923c'; }
+                            else if (f.ext === 'docx' || f.ext === 'doc') { icon = 'fa-file-word'; btnColor = 'rgba(59, 130, 246, 0.15)'; textColor = '#60a5fa'; }
+                            
+                            slideHtml += `
+                                <a href="${f.url}" target="_blank" style="display: flex; align-items: center; gap: 0.3rem; padding: 0.35rem 0.75rem; background: ${btnColor}; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0.25rem; font-size: 0.78rem; text-decoration: none; color: ${textColor}; transition: all 0.2s;" onmouseover="this.style.opacity=0.8" onmouseout="this.style.opacity=1">
+                                    <i class="fa-solid ${icon}"></i> ${f.ext.toUpperCase()} 課程大綱
+                                </a>
+                            `;
+                        });
+                        slideHtml += `</div></div>`;
+                    });
+                }
+                
+                if (slideHtml === '') {
+                    slideHtml = '<div style="color: var(--text-secondary);">本章節暫無官方推薦投影片教材。</div>';
+                }
+                officialSlidesDiv.innerHTML = slideHtml;
             }
 
             // 3. 常考考點與實務 Q&A (整合 static focus 與 faq_db)
