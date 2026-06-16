@@ -1794,6 +1794,74 @@ ${ragLaws}
                 slideIndex++;
             });
 
+            // 新增官方簡報大綱教材投影頁 (整合 pcc_slides_db)
+            const slideData = findOfficialSlidesForCategory(cat);
+            let pccMaterialHTML = '';
+            
+            if (slideData.basic && slideData.basic.length > 0) {
+                pccMaterialHTML += `<div style="margin-bottom: 1rem;">
+                    <h3 style="color: var(--accent); font-size: 1.1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem;"><i class="fa-solid fa-graduation-cap"></i> 官方基礎培訓教材 (投影片/大綱)</h3>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">`;
+                slideData.basic.forEach(topic => {
+                    pccMaterialHTML += `<div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); padding: 0.75rem 1rem; border-radius: 0.5rem;">
+                        <div style="font-weight: bold; margin-bottom: 0.5rem; font-size: 0.95rem; color: var(--text);">${topic.topic}</div>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">`;
+                    topic.files.forEach(f => {
+                        let icon = 'fa-file';
+                        if (f.ext === 'pdf') icon = 'fa-file-pdf';
+                        else if (f.ext === 'pptx' || f.ext === 'ppt') icon = 'fa-file-powerpoint';
+                        else if (f.ext === 'docx' || f.ext === 'doc') icon = 'fa-file-word';
+                        
+                        pccMaterialHTML += `
+                            <a href="${f.url}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.35rem 0.75rem; background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.3); border-radius: 0.25rem; font-size: 0.8rem; text-decoration: none; color: var(--accent); transition: all 0.2s;" onmouseover="this.style.background='rgba(56,189,248,0.25)'" onmouseout="this.style.background='rgba(56,189,248,0.15)'">
+                                <i class="fa-solid ${icon}"></i> ${f.ext.toUpperCase()} 下載
+                            </a>
+                        `;
+                    });
+                    pccMaterialHTML += `</div></div>`;
+                });
+                pccMaterialHTML += `</div></div>`;
+            }
+            
+            if (slideData.advanced && slideData.advanced.length > 0) {
+                pccMaterialHTML += `<div style="margin-bottom: 1rem;">
+                    <h3 style="color: var(--purple); font-size: 1.1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem;"><i class="fa-solid fa-award"></i> 官方進階培訓大綱</h3>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">`;
+                slideData.advanced.forEach(topic => {
+                    pccMaterialHTML += `<div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); padding: 0.75rem 1rem; border-radius: 0.5rem;">
+                        <div style="font-weight: bold; margin-bottom: 0.5rem; font-size: 0.95rem; color: var(--text);">${topic.topic}</div>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">`;
+                    topic.files.forEach(f => {
+                        let icon = 'fa-file';
+                        if (f.ext === 'pdf') icon = 'fa-file-pdf';
+                        else if (f.ext === 'pptx' || f.ext === 'ppt') icon = 'fa-file-powerpoint';
+                        else if (f.ext === 'docx' || f.ext === 'doc') icon = 'fa-file-word';
+                        
+                        pccMaterialHTML += `
+                            <a href="${f.url}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.35rem 0.75rem; background: rgba(129,140,248,0.15); border: 1px solid rgba(129,140,248,0.3); border-radius: 0.25rem; font-size: 0.8rem; text-decoration: none; color: var(--purple); transition: all 0.2s;" onmouseover="this.style.background='rgba(129,140,248,0.25)'" onmouseout="this.style.background='rgba(129,140,248,0.15)'">
+                                <i class="fa-solid ${icon}"></i> ${f.ext.toUpperCase()} 下載
+                            </a>
+                        `;
+                    });
+                    pccMaterialHTML += `</div></div>`;
+                });
+                pccMaterialHTML += `</div></div>`;
+            }
+            
+            if (pccMaterialHTML) {
+                slidesHTML += `
+                <div class="slide" id="slide-${slideIndex}">
+                    <div class="slide-header">
+                        <div class="slide-num">官方教材連結</div>
+                        <h2 class="slide-h2"><span class="icon-star">★</span> 官方完整簡報與教材下載</h2>
+                    </div>
+                    <div class="slide-body" style="overflow-y: auto; max-height: calc(100vh - 12rem); padding-right: 0.5rem;">
+                        ${pccMaterialHTML}
+                    </div>
+                </div>`;
+                slideIndex++;
+            }
+
             // 結尾投影片
             const totalSlides = slideIndex + 1;
             slidesHTML += `
@@ -1814,6 +1882,7 @@ ${ragLaws}
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${cat} — 投影片教學模式</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
