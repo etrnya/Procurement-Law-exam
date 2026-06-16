@@ -392,6 +392,9 @@
 
         let userErrors = JSON.parse(localStorage.getItem('wrong_answers') || '[]');
         let currentTutorialTab = 'lecture'; // 'lecture' | 'map' | 'heat'
+        let currentPracticeLaw = null; // 當前專攻法條
+        let currentPracticeLifecycleStep = null; // 當前專攻採購生命週期階段索引
+        let practiceOnlyErrors = false; // 是否僅練習錯題
 
         const CATEGORIES = [
             "全部題庫",
@@ -481,6 +484,8 @@
 
         function selectCategory(cat) {
             currentCategory = cat;
+            currentPracticeLaw = null;
+            currentPracticeLifecycleStep = null;
             document.querySelectorAll('#categoryList .menu-btn').forEach((btn, idx) => {
                 btn.classList.toggle('active', CATEGORIES[idx] === cat);
             });
@@ -555,12 +560,38 @@
                 list = list.filter(q => q.type === typeFilter);
             }
 
-            // 3. 錯題本模式篩選
-            if (currentMode === 'error') {
+            // 3. 錯題本模式篩選 或 僅練習錯題 狀態下
+            if (currentMode === 'error' || practiceOnlyErrors) {
                 list = list.filter(q => userErrors.includes(q.id));
             }
 
+            // 4. 當前專攻法條篩選
+            if (currentPracticeLaw) {
+                list = list.filter(q => {
+                    const qArticles = getQuestionArticles(q);
+                    return qArticles.includes(currentPracticeLaw);
+                });
+            }
+
+            // 5. 當前專攻採購生命週期階段篩選
+            if (currentPracticeLifecycleStep !== null) {
+                const step = PROCUREMENT_LIFECYCLE[currentPracticeLifecycleStep];
+                list = list.filter(q => {
+                    const qArticles = getQuestionArticles(q);
+                    const hasLawMatch = step.laws.some(lawNo => qArticles.includes(lawNo));
+                    if (hasLawMatch) return true;
+                    
+                    const qText = (q.question_text || '') + ' ' + (q.explanation || '');
+                    return step.keywords.some(kw => qText.includes(kw));
+                });
+            }
+
             filteredQuestions = list;
+
+            // 如果當前是教學模式且在熱度標籤，則更新熱度圖
+            if (currentMode === 'tutorial' && currentTutorialTab === 'heat') {
+                renderHeatMap();
+            }
         }
 
         function handleYearFilterChange() {
@@ -588,9 +619,14 @@
         let visibleQuestionsCount = 30;
 
         // 切換系統模式
-        function switchSystemMode(mode) {
+        function switchSystemMode(mode, keepFilters = false) {
             currentMode = mode;
             visibleQuestionsCount = 30; // 重置可見題數
+            if (!keepFilters) {
+                currentPracticeLaw = null;
+                currentPracticeLifecycleStep = null;
+                practiceOnlyErrors = false;
+            }
             document.getElementById('modeStudyBtn').classList.toggle('active', mode === 'practice');
             document.getElementById('modeTutorialBtn').classList.toggle('active', mode === 'tutorial');
             document.getElementById('modeChatBtn').classList.toggle('active', mode === 'chat');
@@ -724,6 +760,9 @@
                 if (currentMode === 'error') {
                     emptyHtml = renderErrorLawDatabase(); // 即使無題，也要確認是否渲染錯題法條庫
                 }
+                if (currentMode === 'practice') {
+                    emptyHtml = renderCurrentPracticeLawBanner() + renderCurrentPracticeLifecycleBanner();
+                }
                 quizContainer.innerHTML = emptyHtml + `
                     <div class="card" style="width: 100%; max-width: 800px; text-align: center;">
                         <span class="badge-tag">系統提示</span>
@@ -741,6 +780,10 @@
             let htmlContent = '';
             if (currentMode === 'error') {
                 htmlContent += renderErrorLawDatabase();
+            }
+            if (currentMode === 'practice') {
+                htmlContent += renderCurrentPracticeLawBanner();
+                htmlContent += renderCurrentPracticeLifecycleBanner();
             }
 
             for (let i = 0; i < maxToRender; i++) {
@@ -2394,23 +2437,31 @@ ${userInput}
 
         function startLifecycleStepPractice() {
             const step = PROCUREMENT_LIFECYCLE[selectedLifecycleStepIndex];
-            const matched = getLifecycleStepQuestions(step);
             
-            if (matched.length === 0) {
+            currentPracticeLifecycleStep = selectedLifecycleStepIndex;
+            currentPracticeLaw = null;
+            practiceOnlyErrors = false;
+            
+            // 重置為全部題庫以獲取完整的生命週期題庫
+            currentCategory = '全部題庫';
+            document.querySelectorAll('#categoryList .menu-btn').forEach((btn, idx) => {
+                btn.classList.toggle('active', CATEGORIES[idx] === '全部題庫');
+            });
+            
+            applyFilters();
+            
+            if (filteredQuestions.length === 0) {
                 alert(`目前暫無直接關聯 ${step.name.substring(3)} 的考題。`);
+                currentPracticeLifecycleStep = null;
+                applyFilters();
                 return;
             }
             
             currentMode = 'practice';
-            filteredQuestions = matched;
             currentIndex = 0;
             visibleQuestionsCount = 30;
             
-            const catBtns = document.querySelectorAll('.category-btn');
-            catBtns.forEach(btn => btn.classList.remove('active'));
-            
-            switchSystemMode('practice');
-            renderQuestion();
+            switchSystemMode('practice', true); // 保持篩選狀態
             
             const quizContainer = document.getElementById('quizContainer');
             if (quizContainer) {
@@ -2426,7 +2477,8 @@ ${userInput}
             const freqMap = {};
             const questionMatches = {};
             
-            (window.questions_db || []).forEach(q => {
+            // 僅統計目前被篩選過後的題目 (如特定科目)
+            filteredQuestions.forEach(q => {
                 const qArticles = getQuestionArticles(q);
                 qArticles.forEach(art => {
                     freqMap[art] = (freqMap[art] || 0) + 1;
@@ -2452,7 +2504,7 @@ ${userInput}
                 .slice(0, 30);
                 
             if (sortedArticles.length === 0) {
-                grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: 2rem;">📊 目前無高頻考點分析資料，可能題庫或法規庫尚未載入。</div>`;
+                grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: 2rem;">📊 目前篩選條件下無高頻考點分析資料。</div>`;
                 return;
             }
             
@@ -2499,27 +2551,24 @@ ${userInput}
         }
 
         function startHeatLawPractice(art) {
-            const allQs = window.questions_db || [];
-            const matched = allQs.filter(q => {
-                const qArticles = getQuestionArticles(q);
-                return qArticles.includes(art);
-            });
+            currentPracticeLaw = art;
+            currentPracticeLifecycleStep = null;
+            practiceOnlyErrors = false;
             
-            if (matched.length === 0) {
-                alert(`目前無此法條的直接練習題。`);
+            applyFilters();
+            
+            if (filteredQuestions.length === 0) {
+                alert(`目前分類「${currentCategory}」下無 ${art} 的練習題。`);
+                currentPracticeLaw = null;
+                applyFilters();
                 return;
             }
             
             currentMode = 'practice';
-            filteredQuestions = matched;
             currentIndex = 0;
             visibleQuestionsCount = 30;
             
-            const catBtns = document.querySelectorAll('.category-btn');
-            catBtns.forEach(btn => btn.classList.remove('active'));
-            
-            switchSystemMode('practice');
-            renderQuestion();
+            switchSystemMode('practice', true); // 保持篩選狀態
             
             const quizContainer = document.getElementById('quizContainer');
             if (quizContainer) {
@@ -2618,30 +2667,103 @@ ${userInput}
         }
 
         function startErrorLawPractice(art) {
-            const errorIds = userErrors;
-            const allQs = window.questions_db || [];
-            const matched = allQs.filter(q => errorIds.includes(q.id) && getQuestionArticles(q).includes(art));
+            currentPracticeLaw = art;
+            currentPracticeLifecycleStep = null;
+            practiceOnlyErrors = true;
             
-            if (matched.length === 0) {
+            applyFilters();
+            
+            if (filteredQuestions.length === 0) {
                 alert(`目前無此法條的錯題。`);
+                currentPracticeLaw = null;
+                practiceOnlyErrors = false;
+                applyFilters();
                 return;
             }
             
             currentMode = 'practice';
-            filteredQuestions = matched;
             currentIndex = 0;
             visibleQuestionsCount = 30;
             
-            const catBtns = document.querySelectorAll('.category-btn');
-            catBtns.forEach(btn => btn.classList.remove('active'));
-            
-            switchSystemMode('practice');
-            renderQuestion();
+            switchSystemMode('practice', true); // 保持篩選狀態
             
             const quizContainer = document.getElementById('quizContainer');
             if (quizContainer) {
                 quizContainer.scrollIntoView({ behavior: 'smooth' });
             }
+        }
+
+        // Banners & clear actions for law practice
+        function renderCurrentPracticeLawBanner() {
+            if (!currentPracticeLaw) return '';
+            
+            const lawDetail = (window.laws_db || []).find(l => l.article === currentPracticeLaw);
+            const title = lawDetail ? lawDetail.title : '相關法規';
+            const content = lawDetail ? lawDetail.content : '暫無條文內文。';
+            const prefix = practiceOnlyErrors ? '正在複習錯題法條' : '正在專攻法條';
+            const badgeColor = practiceOnlyErrors ? 'var(--error)' : 'var(--accent-blue)';
+            const bgLight = practiceOnlyErrors ? 'rgba(239, 68, 68, 0.03)' : 'rgba(56, 189, 248, 0.03)';
+            
+            return `
+                <div class="card" style="width: 100%; max-width: 800px; margin-bottom: 1.5rem; border: 1px solid ${badgeColor}; background: ${bgLight};">
+                    <div style="display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid var(--card-border); padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
+                        <div style="font-weight: bold; color: ${badgeColor}; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fa-solid fa-graduation-cap"></i> 🎯 ${prefix}：${currentPracticeLaw}
+                        </div>
+                        <button class="action-btn" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171;" onclick="clearCurrentPracticeLaw()">
+                            <i class="fa-solid fa-xmark"></i> 清除篩選
+                        </button>
+                    </div>
+                    <div style="font-weight: bold; color: var(--text-primary); margin-bottom: 0.5rem;">
+                        ${currentPracticeLaw} 【${title}】
+                    </div>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; white-space: pre-wrap;">
+                        ${content}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderCurrentPracticeLifecycleBanner() {
+            if (currentPracticeLifecycleStep === null) return '';
+            
+            const step = PROCUREMENT_LIFECYCLE[currentPracticeLifecycleStep];
+            if (!step) return '';
+            
+            return `
+                <div class="card" style="width: 100%; max-width: 800px; margin-bottom: 1.5rem; border: 1px solid #10b981; background: rgba(16, 185, 129, 0.03);">
+                    <div style="display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid var(--card-border); padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
+                        <div style="font-weight: bold; color: #10b981; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fa-solid fa-route"></i> 🎯 正在專攻採購生命週期階段：${step.name}
+                        </div>
+                        <button class="action-btn" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171;" onclick="clearCurrentPracticeLifecycle()">
+                            <i class="fa-solid fa-xmark"></i> 清除篩選
+                        </button>
+                    </div>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; margin-bottom: 0.5rem;">
+                        ${step.desc}
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">
+                        🔑 <b>關聯法條</b>：${step.laws.join('、')} <br>
+                        🔍 <b>關鍵字詞</b>：${step.keywords.join('、')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function clearCurrentPracticeLaw() {
+            currentPracticeLaw = null;
+            practiceOnlyErrors = false;
+            applyFilters();
+            currentIndex = 0;
+            renderQuestion();
+        }
+
+        function clearCurrentPracticeLifecycle() {
+            currentPracticeLifecycleStep = null;
+            applyFilters();
+            currentIndex = 0;
+            renderQuestion();
         }
 
         // 投影片教學模式生成器
