@@ -142,7 +142,21 @@
                             章節主題
                         </div>
                         
-                        <div style="margin-top: 1.25rem;">
+                        <!-- 講義標籤切換 -->
+                        <div class="tutorial-tabs" style="margin-bottom: 1rem;">
+                            <button class="tab-btn active" id="tabBtnLecture" onclick="switchTutorialTab('lecture')">
+                                <i class="fa-solid fa-book-open"></i> 核心講義
+                            </button>
+                            <button class="tab-btn" id="tabBtnMap" onclick="switchTutorialTab('map')">
+                                <i class="fa-solid fa-route"></i> 採購生命週期地圖
+                            </button>
+                            <button class="tab-btn" id="tabBtnHeat" onclick="switchTutorialTab('heat')">
+                                <i class="fa-solid fa-fire"></i> 考點熱度分析
+                            </button>
+                        </div>
+
+                        <!-- 1. 核心講義面板 -->
+                        <div id="tutorialLecturePanel" style="margin-top: 1.25rem;">
                             <div class="explanation-title" style="margin-bottom: 0.5rem;"><i class="fa-solid fa-star"></i> 本章核心大綱 (Key Takeaways)</div>
                             <ul id="tTakeaways" style="padding-left: 1.25rem; color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.5rem;">
                                 <!-- 動態講義重點 -->
@@ -170,6 +184,50 @@
                                 <button class="action-btn" style="flex: 1; min-width: 180px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; border: none;" onclick="generateSlidePresentation()">
                                     <i class="fa-solid fa-display"></i> 開啟投影片教學
                                 </button>
+                            </div>
+                        </div>
+
+                        <!-- 2. 採購生命週期地圖面板 -->
+                        <div id="tutorialMapPanel" style="display: none; margin-top: 1.25rem;">
+                            <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem; line-height: 1.5;">
+                                💡 <b>政府採購全生命週期地圖</b>：請點擊下方的各個採購流程階段，查看其核心法規條文與考試重點，並可一鍵篩選該階段題目進行針對性練習！
+                            </div>
+                            
+                            <div class="flowchart-container">
+                                <div class="flowchart-steps" id="flowchartSteps">
+                                    <!-- 由 JS 動態生成 11 個流程按鈕 -->
+                                </div>
+                                
+                                <div class="step-details-card" id="stepDetailsCard" style="display: none;">
+                                    <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--card-border); padding-bottom: 0.5rem; margin-bottom: 0.75rem;">
+                                        <h4 id="stepDetailsTitle" style="color: var(--accent-blue); font-size: 1.15rem; margin: 0; display: flex; align-items: center; gap: 0.4rem;">
+                                            <!-- 階段名稱 -->
+                                        </h4>
+                                        <button class="action-btn primary" id="stepPracticeBtn" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="startLifecycleStepPractice()">
+                                            <i class="fa-solid fa-play"></i> 練習此階段題目
+                                        </button>
+                                    </div>
+                                    <p id="stepDetailsDesc" style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 1rem;">
+                                        <!-- 階段說明 -->
+                                    </p>
+                                    <div style="font-weight: bold; font-size: 0.9rem; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                        <i class="fa-solid fa-book-bookmark"></i> 關聯核心法條：
+                                    </div>
+                                    <div id="stepDetailsLaws" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                        <!-- 關聯條文列表，點擊可展開 -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. 考點熱度分析面板 -->
+                        <div id="tutorialHeatPanel" style="display: none; margin-top: 1.25rem;">
+                            <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem; line-height: 1.5;">
+                                🔥 <b>政府採購法高頻考點熱度排行榜 (Top 30)</b>：系統動態分析全部題庫，統計各法規條文在考試題目中的出現頻率。點擊法條可查閱詳細內容，並可一鍵出題練習！
+                            </div>
+                            
+                            <div class="heat-grid" id="heatGrid">
+                                <!-- 由 JS 動態生成 TOP 30 高頻條文項目 -->
                             </div>
                         </div>
                     </div>
@@ -299,6 +357,7 @@
         let examSubmitted = false;
 
         let userErrors = JSON.parse(localStorage.getItem('wrong_answers') || '[]');
+        let currentTutorialTab = 'lecture'; // 'lecture' | 'map' | 'heat'
 
         const CATEGORIES = [
             "全部題庫",
@@ -589,6 +648,7 @@
                 tutorialCard.style.display = 'block';
                 actionBar.style.display = 'none'; 
                 renderTutorial();
+                switchTutorialTab(currentTutorialTab);
                 return;
             }
 
@@ -626,7 +686,11 @@
             const list = currentMode === 'exam' ? examQuestions : filteredQuestions;
             
             if (list.length === 0) {
-                quizContainer.innerHTML = `
+                let emptyHtml = '';
+                if (currentMode === 'error') {
+                    emptyHtml = renderErrorLawDatabase(); // 即使無題，也要確認是否渲染錯題法條庫
+                }
+                quizContainer.innerHTML = emptyHtml + `
                     <div class="card" style="width: 100%; max-width: 800px; text-align: center;">
                         <span class="badge-tag">系統提示</span>
                         <p style="margin-top: 1.5rem; color: var(--text-secondary);">
@@ -641,6 +705,10 @@
             const maxToRender = currentMode === 'exam' ? list.length : Math.min(visibleQuestionsCount, list.length);
             
             let htmlContent = '';
+            if (currentMode === 'error') {
+                htmlContent += renderErrorLawDatabase();
+            }
+
             for (let i = 0; i < maxToRender; i++) {
                 const q = list[i];
                 
@@ -755,13 +823,22 @@
                                         <i class="fa-solid fa-wand-magic-sparkles"></i> AI 深度解析
                                     </button>
                                     <button 
+                                        id="essay-challenge-toggle-${q.id}"
+                                        onclick="toggleEssayChallenge('${q.id}')"
+                                        title="答題理由自評挑戰"
+                                        style="display: flex; align-items: center; gap: 0.4rem; padding: 0.55rem 0.9rem; background: rgba(168,85,247,0.1); border: 1px solid rgba(168,85,247,0.35); border-radius: 0.5rem; color: #d8b4fe; font-size: 0.85rem; cursor: pointer; white-space:nowrap; transition: all 0.2s;"
+                                        onmouseover="this.style.background='rgba(168,85,247,0.2)'"
+                                        onmouseout="this.style.background='rgba(168,85,247,0.1)'">
+                                        <i class="fa-solid fa-brain"></i> 申論理由挑戰
+                                    </button>
+                                    <button 
                                         id="tlr-rag-btn-${q.id}"
                                         onclick="requestTlrJudgments('${q.id}')"
                                         title="連接 TLR 檢索 2200 萬筆實務判決"
                                         style="display: flex; align-items: center; gap: 0.4rem; padding: 0.55rem 0.9rem; background: rgba(168,85,247,0.1); border: 1px solid rgba(168,85,247,0.35); border-radius: 0.5rem; color: #d8b4fe; font-size: 0.85rem; cursor: pointer; white-space:nowrap; transition: all 0.2s;"
                                         onmouseover="this.style.background='rgba(168,85,247,0.2)'"
                                         onmouseout="this.style.background='rgba(168,85,247,0.1)'">
-                                        <i class="fa-solid fa-scale-balanced"></i> 檢索實務判決
+                                        <i class="fa-solid fa-scale-balanced"></i> 檢索判決
                                     </button>
                                     <button 
                                         id="ai-copy-btn-${q.id}"
@@ -774,6 +851,23 @@
                                     </button>
                                 </div>`;
                             })()}
+
+                            <!-- 申論理由自評挑戰面板 -->
+                            <div class="essay-challenge-box" id="essay-box-${q.id}" style="display: none; margin-top: 0.85rem;">
+                                <div style="font-weight: bold; color: #c084fc; display: flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;">
+                                    <i class="fa-solid fa-brain"></i> 申論理由挑戰
+                                </div>
+                                <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                                    請試著寫出或默寫出本題所依據的<b>採購法規條號與核心理由</b>，完成後讓 AI 為您的回答進行評分：
+                                </div>
+                                <textarea class="essay-textarea" id="essay-input-${q.id}" placeholder="例如：本題係依據政府採購法第22條第1項第9款規定，委託專業服務經評選為優勝者，得採限制性招標。"></textarea>
+                                <div style="display: flex; justify-content: flex-end; margin-top: 0.5rem; gap: 0.5rem;">
+                                    <button onclick="submitEssayChallenge('${q.id}')" id="essay-submit-btn-${q.id}" style="padding: 0.45rem 1rem; background: #a855f7; border: none; border-radius: 0.4rem; color: #fff; font-size: 0.85rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 0.3rem;">
+                                        <i class="fa-solid fa-square-check"></i> 提交 AI 評分
+                                    </button>
+                                </div>
+                                <div class="essay-result-box" id="essay-result-${q.id}" style="display: none;"></div>
+                            </div>
                         </div>
                 `;
 
@@ -1672,7 +1766,7 @@ ${ragContext}${tlrContext}`;
                 ragLaws = '\n[相關法條參考]\n' + matchedRag.map(l => `${l.article} ${l.title}：${l.content}`).join('\n');
             }
 
-            const prompt = `你是一位精通《政府採購法》及相關子法（施行細則、評選辦法、技術服務辦法等）的台灣法律專家。
+            const prompt = `你是一位精通《政府採購法》及相關子法（施行細則、評選辦法、技術服務辦法、最有利標評選辦法等）的台灣法律專家。
 請針對以下考試題目，提供完整、詳細的解析，必須引用具體法條。
 
 【考試題目】
@@ -1685,16 +1779,22 @@ ${optionsText}
 
 ${ragLaws}
 
-請依以下格式回覆（使用繁體中文）：
+請依以下格式回覆（使用繁體中文，且不要使用任何 markdown 表格，改以粗體或列表呈現）：
 
-📋 **解析**
-（說明為何第${correctAnswer}選項正確，並引用具體法條，格式如：依政府採購法第XX條第X項規定：「...」）
+📋 **解析與核心考點**
+（說明為何第${correctAnswer}選項正確，引用具體法條，並明確指出本題的「核心考點」與法律觀念）
+
+⚠️ **易混淆概念**
+（說明監驗、主驗、協驗或其他容易與此題混淆的角色、期限、或限額，讓使用者徹底釐清此知識點，防範陷阱）
 
 ❌ **其他選項為何錯誤**
 （逐一說明其他選項的錯誤原因，引用具體條文）
 
 📖 **相關法條條文**
 （列出本題涉及的完整法條名稱、條號及重要條文內容）
+
+🔮 **延伸考法與變型**
+（簡述歷年或可能出現的 2-3 種相關延伸考題問法與考點變化，並提供簡要提示）
 
 💡 **考試記憶技巧**
 （提供1-2個幫助記憶此知識點的技巧）`;
@@ -1762,8 +1862,10 @@ ${ragLaws}
                 const htmlText = escaped
                     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
                     .replace(/^📋/gm, '<div style="margin-top:0.75rem; font-weight:bold; color:#38bdf8;">📋')
+                    .replace(/^⚠️/gm, '<div style="margin-top:0.75rem; font-weight:bold; color:#f59e0b;">⚠️')
                     .replace(/^❌/gm, '<div style="margin-top:0.75rem; font-weight:bold; color:#f87171;">❌')
                     .replace(/^📖/gm, '<div style="margin-top:0.75rem; font-weight:bold; color:#34d399;">📖')
+                    .replace(/^🔮/gm, '<div style="margin-top:0.75rem; font-weight:bold; color:#a855f7;">🔮')
                     .replace(/^💡/gm, '<div style="margin-top:0.75rem; font-weight:bold; color:#fbbf24;">💡')
                     .replace(/\n/g, '<br>');
 
@@ -1933,6 +2035,581 @@ ${ragLaws}
         }
 
         // =====================================================================
+        // =====================================================================
+        // 採購法規學習知識系統：新增功能與輔助函式
+        // =====================================================================
+
+        // 1. 條文抽取輔助函式
+        function getQuestionArticles(q) {
+            const text = (q.question_text || '') + ' ' + (q.explanation || '');
+            const regex = /(施行細則|最有利標評選辦法|採購法|政府採購法)?第\s*(\d+(?:-\d+)?)\s*條/g;
+            const articles = [];
+            let match;
+            while ((match = regex.exec(text)) !== null) {
+                let prefix = match[1] || '';
+                let num = match[2];
+                let fullName = '';
+                if (prefix.includes('細則')) {
+                    fullName = `施行細則第${num}條`;
+                } else {
+                    fullName = `第${num}條`;
+                }
+                if (!articles.includes(fullName)) {
+                    articles.push(fullName);
+                }
+            }
+            return articles;
+        }
+
+        // 2. 申論自評挑戰
+        function toggleEssayChallenge(questionId) {
+            const box = document.getElementById(`essay-box-${questionId}`);
+            if (box) {
+                box.style.display = box.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
+        async function submitEssayChallenge(questionId) {
+            const list = currentMode === 'exam' ? examQuestions : filteredQuestions;
+            const q = list.find(item => item.id === questionId) || (window.questions_db || []).find(item => item.id === questionId);
+            if (!q) return;
+
+            const userInput = document.getElementById(`essay-input-${questionId}`).value.trim();
+            if (!userInput) {
+                alert('請先輸入您的回答內容！');
+                return;
+            }
+
+            const apiKey = localStorage.getItem('gemini_api_key');
+            if (!apiKey) {
+                alert('請先在「設定」頁面輸入並儲存您的 Gemini API Key，才能使用 AI 評分功能！');
+                return;
+            }
+
+            const submitBtn = document.getElementById(`essay-submit-btn-${questionId}`);
+            const resultDiv = document.getElementById(`essay-result-${questionId}`);
+            
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> AI 正在評估中...';
+            }
+            
+            if (resultDiv) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = '<span style="color: var(--text-secondary);"><i class="fa-solid fa-circle-notch fa-spin"></i> AI 正在診斷您的法律條文與邏輯...</span>';
+            }
+
+            const prompt = `你是一位嚴格且專業的台灣《政府採購法》考試評審。
+請針對以下題目、官方標準答案、以及使用者的申論自評答案進行評分與指導。
+
+【考試題目】
+${q.question_text}
+
+【標準答案】
+第 ${q.correct_answer} 選項
+
+【官方解析】
+${q.explanation || '依採購法相關規定辦理。'}
+
+【使用者回答的申論理由】
+${userInput}
+
+請以繁體中文撰寫，並依照以下格式給予回覆（不要使用 markdown 表格，改以粗體或列表呈現）：
+💯 **評分得分**：[給予 0~100 的分數，若答對關鍵法條（例如第XX條第X項）且邏輯正確，應給予高分；若法條寫錯、項款混淆或理由不對，請酌予扣分]
+🎯 **關鍵法條比對**：[分析使用者回答的條號、款項是否與本題標準答案完全契合，指出正確與錯誤之處]
+⚖️ **邏輯與理由診斷**：[評估使用者的採購法觀念與法律理由是否正確、完整。指出是否有混淆概念]
+💡 **搶分修正建議**：[給予 1-2 句具體建議，幫助使用者在考試中拿到完整分數]`;
+
+            const EXPLAIN_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+            let essayResponse, essayLastErr;
+
+            for (const model of EXPLAIN_MODELS) {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 15000);
+                try {
+                    essayResponse = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                            generationConfig: { temperature: 0.3, maxOutputTokens: 1000 }
+                        }),
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeoutId);
+                    if (essayResponse.status === 503 || essayResponse.status === 429) {
+                        explainLastErr = new Error(`HTTP ${essayResponse.status}`);
+                        continue;
+                    }
+                    if (!essayResponse.ok) throw new Error(`HTTP ${essayResponse.status}`);
+                    break;
+                } catch (fetchErr) {
+                    clearTimeout(timeoutId);
+                    essayLastErr = (fetchErr.name === 'AbortError') ? new Error('請求逾時（15秒）') : fetchErr;
+                    if (model === EXPLAIN_MODELS[EXPLAIN_MODELS.length - 1]) throw essayLastErr;
+                }
+            }
+
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fa-solid fa-square-check"></i> 重新提交 AI 評分';
+            }
+
+            try {
+                if (!essayResponse || !essayResponse.ok) throw essayLastErr || new Error('無法取得 AI 回應');
+                const data = await essayResponse.json();
+                const aiText = data.candidates[0].content.parts[0].text;
+                
+                const escaped = aiText
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+                const htmlText = escaped
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\n/g, '<br>');
+
+                if (resultDiv) {
+                    resultDiv.innerHTML = `<div style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 0.5rem; padding: 0.85rem; margin-top: 0.5rem; line-height: 1.6;">${htmlText}</div>`;
+                }
+            } catch (err) {
+                if (resultDiv) {
+                    resultDiv.innerHTML = `<span style="color: var(--error)">[評分失敗] ${err.message}。請檢查網路或 API Key。</span>`;
+                }
+            }
+        }
+
+        // 3. 講義模式標籤頁切換
+        function switchTutorialTab(tab) {
+            currentTutorialTab = tab;
+            
+            document.getElementById('tabBtnLecture').classList.toggle('active', tab === 'lecture');
+            document.getElementById('tabBtnMap').classList.toggle('active', tab === 'map');
+            document.getElementById('tabBtnHeat').classList.toggle('active', tab === 'heat');
+            
+            document.getElementById('tutorialLecturePanel').style.display = tab === 'lecture' ? 'block' : 'none';
+            document.getElementById('tutorialMapPanel').style.display = tab === 'map' ? 'block' : 'none';
+            document.getElementById('tutorialHeatPanel').style.display = tab === 'heat' ? 'block' : 'none';
+            
+            if (tab === 'map') {
+                renderFlowchart();
+            } else if (tab === 'heat') {
+                renderHeatMap();
+            }
+        }
+
+        // 4. 採購流程生命週期資料
+        const PROCUREMENT_LIFECYCLE = [
+            {
+                name: "1. 需求提出",
+                icon: "fa-regular fa-clipboard",
+                desc: "政府機關因業務需要，規劃採購需求、編列預算、委託法人代辦或進行可行性評估，並決定是否受政府補助之適用。在此階段須注意避免不當拆標或規避採購法。",
+                laws: ["第4條", "第5條", "第11條", "第11-1條", "第14條"],
+                keywords: ["補助", "代辦", "資訊中心", "工作及審查小組", "分批辦理", "規避"]
+            },
+            {
+                name: "2. 招標程序",
+                icon: "fa-solid fa-bullhorn",
+                desc: "機關依據採購性質選擇招標方式（公開招標、選擇性招標或限制性招標）。擬定招標文件、公告期限、投標資格，並得辦理共同供應契約或採最有利標之規劃。",
+                laws: ["第18條", "第19條", "第20條", "第22條", "第93條"],
+                keywords: ["招標", "公開招標", "選擇性招標", "限制性招標", "共同供應契約"]
+            },
+            {
+                name: "3. 投標作業",
+                icon: "fa-solid fa-file-signature",
+                desc: "廠商依據招標公告，繳納押標金，準備投標文件於截止收件時間前遞送投標。機關須遵守保密規定，廠商得對招標文件提出疑義與異議。",
+                laws: ["第30條", "第33條", "第34條", "第41條"],
+                keywords: ["投標", "押標金", "疑義", "保密"]
+            },
+            {
+                name: "4. 開標作業",
+                icon: "fa-solid fa-envelope-open-text",
+                desc: "機關依招標文件規定之時間及地點，開啟廠商投標封套，宣布廠商名稱、投標封數及其他相關內容。監辦人員應到場進行會同監辦。",
+                laws: ["第12條", "第13條", "第45條", "第48條"],
+                keywords: ["開標", "監辦", "開標時間"]
+            },
+            {
+                name: "5. 審標作業",
+                icon: "fa-solid fa-magnifying-glass",
+                desc: "機關對投標廠商之資格、規格及價格文件進行審查。若有不符合招標文件規定者應不予開標或決標；若投標文件內容不明確，得通知廠商澄清說明。",
+                laws: ["第50條", "第51條"],
+                keywords: ["審標", "澄清", "不予開標", "不予決標"]
+            },
+            {
+                name: "6. 決標程序",
+                icon: "fa-solid fa-gavel",
+                desc: "審標完成後，依最低標或最有利標原則決定得標廠商。此階段涉及開標減價、底價之訂定、不合理低價之評估與決標程序。",
+                laws: ["第52條", "第53條", "第54條", "第56條", "第58條"],
+                keywords: ["決標", "最低標", "最有利標", "減價", "超底價", "不合理低價"]
+            },
+            {
+                name: "7. 訂約階段",
+                icon: "fa-solid fa-file-contract",
+                desc: "得標廠商與機關依據招標文件與得標條件簽訂採購契約。契約之制定應參照主管機關訂定之標準契約與定型化契約條款。",
+                laws: ["第63條", "第64條"],
+                keywords: ["訂約", "採購契約", "標準契約", "終止契約"]
+            },
+            {
+                name: "8. 履約管理",
+                icon: "fa-solid fa-screwdriver-wrench",
+                desc: "契約生效後，廠商進行履約，機關進行品質管制、查驗與進度管理。嚴格限制廠商非經核准不得轉包，分包廠商則得由得標廠商負連帶責任。",
+                laws: ["第65條", "第66條", "第67條", "第70條"],
+                keywords: ["履約", "轉包", "分包", "施工品質", "查驗"]
+            },
+            {
+                name: "9. 驗收程序",
+                icon: "fa-solid fa-clipboard-check",
+                desc: "廠商履約完成後，機關限期辦理初驗與驗收。由主驗人員主持，監驗人員會同監辦，確認數量與品質。符合規定者應予簽名，若有瑕疵得採減價收受。",
+                laws: ["第71條", "第72條", "第73條", "施行細則第96條"],
+                keywords: ["驗收", "主驗", "會同驗收", "減價收受", "驗收紀錄"]
+            },
+            {
+                name: "10. 保固責任",
+                icon: "fa-solid fa-shield-halved",
+                desc: "驗收合格且給付尾款後，進入保固期。廠商應提供保固保證金，若保固期間發現瑕疵，應負瑕疵擔保及修繕責任。",
+                laws: ["第30條", "第70條"],
+                keywords: ["保固", "保固金", "瑕疵"]
+            },
+            {
+                name: "11. 爭議處理",
+                icon: "fa-solid fa-scale-balanced",
+                desc: "招標、審標、決標、履約或驗收階段，廠商如認為機關違反採購法規損及其利益，得依法提出異議、申訴，或於履約爭議時提請調解與仲裁。",
+                laws: ["第74條", "第75條", "第76條", "第83條", "第85-1條"],
+                keywords: ["爭議", "異議", "申訴", "調解", "仲裁", "審議判斷"]
+            }
+        ];
+
+        let selectedLifecycleStepIndex = 0;
+
+        function renderFlowchart() {
+            const stepsContainer = document.getElementById('flowchartSteps');
+            if (!stepsContainer) return;
+            
+            stepsContainer.innerHTML = PROCUREMENT_LIFECYCLE.map((step, idx) => {
+                const isActive = idx === selectedLifecycleStepIndex;
+                return `
+                    <button class="flow-step-btn ${isActive ? 'active' : ''}" onclick="selectLifecycleStep(${idx})">
+                        <i class="${step.icon}"></i>
+                        <span>${step.name.substring(3)}</span>
+                    </button>
+                `;
+            }).join('');
+            
+            const step = PROCUREMENT_LIFECYCLE[selectedLifecycleStepIndex];
+            document.getElementById('stepDetailsCard').style.display = 'block';
+            document.getElementById('stepDetailsTitle').innerHTML = `<i class="${step.icon}"></i> ${step.name}`;
+            document.getElementById('stepDetailsDesc').innerText = step.desc;
+            
+            const lawsContainer = document.getElementById('stepDetailsLaws');
+            if (lawsContainer) {
+                lawsContainer.innerHTML = step.laws.map(lawNo => {
+                    const lawDetail = (window.laws_db || []).find(l => l.article === lawNo);
+                    if (lawDetail) {
+                        return `
+                            <div class="step-law-item" onclick="toggleStepLawContent('${lawNo}')">
+                                <div style="display: flex; align-items: center; justify-content: space-between; font-weight: bold; color: var(--accent-blue); font-size: 0.9rem;">
+                                    <span>${lawDetail.article} ${lawDetail.title}</span>
+                                    <i class="fa-solid fa-chevron-down" id="step-law-chevron-${lawNo}"></i>
+                                </div>
+                                <div id="step-law-content-${lawNo}" style="display: none; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.55; white-space: pre-wrap; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.4rem;">
+                                    ${lawDetail.content}
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        return `
+                            <div class="step-law-item" style="cursor: default; opacity: 0.8;">
+                                <span style="font-weight: bold; color: var(--text-secondary); font-size: 0.9rem;">${lawNo}</span>
+                            </div>
+                        `;
+                    }
+                }).join('');
+            }
+        }
+
+        function selectLifecycleStep(idx) {
+            selectedLifecycleStepIndex = idx;
+            renderFlowchart();
+        }
+
+        function toggleStepLawContent(lawNo) {
+            const el = document.getElementById(`step-law-content-${lawNo}`);
+            const chev = document.getElementById(`step-law-chevron-${lawNo}`);
+            if (el) {
+                if (el.style.display === 'none') {
+                    el.style.display = 'block';
+                    if (chev) chev.className = 'fa-solid fa-chevron-up';
+                } else {
+                    el.style.display = 'none';
+                    if (chev) chev.className = 'fa-solid fa-chevron-down';
+                }
+            }
+        }
+
+        function getLifecycleStepQuestions(step) {
+            return (window.questions_db || []).filter(q => {
+                const qArticles = getQuestionArticles(q);
+                const hasLawMatch = step.laws.some(lawNo => qArticles.includes(lawNo));
+                if (hasLawMatch) return true;
+                
+                const qText = (q.question_text || '') + ' ' + (q.explanation || '');
+                const hasKeywordMatch = step.keywords.some(kw => qText.includes(kw));
+                return hasKeywordMatch;
+            });
+        }
+
+        function startLifecycleStepPractice() {
+            const step = PROCUREMENT_LIFECYCLE[selectedLifecycleStepIndex];
+            const matched = getLifecycleStepQuestions(step);
+            
+            if (matched.length === 0) {
+                alert(`目前暫無直接關聯 ${step.name.substring(3)} 的考題。`);
+                return;
+            }
+            
+            currentMode = 'practice';
+            filteredQuestions = matched;
+            currentIndex = 0;
+            visibleQuestionsCount = 30;
+            
+            const catBtns = document.querySelectorAll('.category-btn');
+            catBtns.forEach(btn => btn.classList.remove('active'));
+            
+            switchSystemMode('practice');
+            renderQuestion();
+            
+            const quizContainer = document.getElementById('quizContainer');
+            if (quizContainer) {
+                quizContainer.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
+        // 5. 考點熱度排行榜 (Top 30)
+        function renderHeatMap() {
+            const grid = document.getElementById('heatGrid');
+            if (!grid) return;
+            
+            const freqMap = {};
+            const questionMatches = {};
+            
+            (window.questions_db || []).forEach(q => {
+                const qArticles = getQuestionArticles(q);
+                qArticles.forEach(art => {
+                    freqMap[art] = (freqMap[art] || 0) + 1;
+                    if (!questionMatches[art]) {
+                        questionMatches[art] = [];
+                    }
+                    questionMatches[art].push(q);
+                });
+            });
+            
+            const sortedArticles = Object.keys(freqMap)
+                .map(art => {
+                    const lawDetail = (window.laws_db || []).find(l => l.article === art);
+                    return {
+                        article: art,
+                        title: lawDetail ? lawDetail.title : '相關規定',
+                        content: lawDetail ? lawDetail.content : '暫無條文內文。',
+                        count: freqMap[art],
+                        questions: questionMatches[art] || []
+                    };
+                })
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 30);
+                
+            if (sortedArticles.length === 0) {
+                grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: 2rem;">📊 目前無高頻考點分析資料，可能題庫或法規庫尚未載入。</div>`;
+                return;
+            }
+            
+            grid.innerHTML = sortedArticles.map((item, idx) => {
+                const safeArt = item.article.replace(/\s+/g, '-');
+                return `
+                    <div class="heat-item" id="heat-item-${safeArt}" style="border-left: 3px solid #ef4444; background: rgba(239, 68, 68, 0.015);">
+                        <div style="display: flex; align-items: flex-start; justify-content: space-between;">
+                            <span class="heat-top-badge">TOP ${idx + 1}</span>
+                            <span style="font-size: 0.8rem; color: #f87171; font-weight: bold;"><i class="fa-solid fa-fire"></i> 出現 ${item.count} 次</span>
+                        </div>
+                        <div style="font-weight: bold; color: var(--text-primary); font-size: 1rem; margin-top: 0.25rem; cursor: pointer;" onclick="toggleHeatLawContent('${item.article}')">
+                            ${item.article} <span style="font-size: 0.85rem; color: var(--accent-blue); font-weight: 500;">${item.title}</span>
+                            <i class="fa-solid fa-chevron-down" id="heat-law-chevron-${safeArt}" style="font-size: 0.8rem; margin-left: 0.25rem; color: var(--text-secondary);"></i>
+                        </div>
+                        
+                        <div id="heat-law-content-${safeArt}" style="display: none; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.4rem; white-space: pre-wrap;">
+                            ${item.content}
+                        </div>
+                        
+                        <div style="margin-top: 0.5rem; display: flex; justify-content: flex-end;">
+                            <button class="action-btn" style="padding: 0.25rem 0.6rem; font-size: 0.75rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171;" onclick="startHeatLawPractice('${item.article}')">
+                                <i class="fa-solid fa-play"></i> 練習此法條 ${item.count} 題
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleHeatLawContent(art) {
+            const safeArt = art.replace(/\s+/g, '-');
+            const contentDiv = document.getElementById(`heat-law-content-${safeArt}`);
+            const chev = document.getElementById(`heat-law-chevron-${safeArt}`);
+            if (contentDiv) {
+                if (contentDiv.style.display === 'none') {
+                    contentDiv.style.display = 'block';
+                    if (chev) chev.className = 'fa-solid fa-chevron-up';
+                } else {
+                    contentDiv.style.display = 'none';
+                    if (chev) chev.className = 'fa-solid fa-chevron-down';
+                }
+            }
+        }
+
+        function startHeatLawPractice(art) {
+            const allQs = window.questions_db || [];
+            const matched = allQs.filter(q => {
+                const qArticles = getQuestionArticles(q);
+                return qArticles.includes(art);
+            });
+            
+            if (matched.length === 0) {
+                alert(`目前無此法條的直接練習題。`);
+                return;
+            }
+            
+            currentMode = 'practice';
+            filteredQuestions = matched;
+            currentIndex = 0;
+            visibleQuestionsCount = 30;
+            
+            const catBtns = document.querySelectorAll('.category-btn');
+            catBtns.forEach(btn => btn.classList.remove('active'));
+            
+            switchSystemMode('practice');
+            renderQuestion();
+            
+            const quizContainer = document.getElementById('quizContainer');
+            if (quizContainer) {
+                quizContainer.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
+        // 6. 錯題法條庫統計
+        function renderErrorLawDatabase() {
+            const errorIds = userErrors;
+            if (!errorIds || errorIds.length === 0) return '';
+
+            const freqMap = {};
+            const errorQuestions = {};
+            
+            errorIds.forEach(id => {
+                const q = (window.questions_db || []).find(item => item.id === id);
+                if (q) {
+                    const articles = getQuestionArticles(q);
+                    articles.forEach(art => {
+                        freqMap[art] = (freqMap[art] || 0) + 1;
+                        if (!errorQuestions[art]) {
+                            errorQuestions[art] = [];
+                        }
+                        errorQuestions[art].push(q);
+                    });
+                }
+            });
+
+            const sortedErrorLaws = Object.keys(freqMap)
+                .map(art => {
+                    const lawDetail = (window.laws_db || []).find(l => l.article === art);
+                    return {
+                        article: art,
+                        title: lawDetail ? lawDetail.title : '相關規定',
+                        content: lawDetail ? lawDetail.content : '',
+                        count: freqMap[art],
+                        questions: errorQuestions[art]
+                    };
+                })
+                .sort((a, b) => b.count - a.count);
+
+            if (sortedErrorLaws.length === 0) return '';
+
+            let html = `
+                <div class="card" style="width: 100%; max-width: 800px; margin-bottom: 1.5rem; border: 1px solid rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.015);">
+                    <div style="font-weight: bold; color: var(--error); font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--card-border); padding-bottom: 0.5rem; margin-bottom: 0.85rem;">
+                        <i class="fa-solid fa-list-check"></i> 🎯 錯題法條庫 (分析錯在哪個法條)
+                    </div>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem; line-height: 1.4;">
+                        💡 <b>學習秘訣</b>：考試換題目不換法條！以下是您答錯的題目所關聯的法規條文統計，優先攻克高頻錯題法條，學習效率最高。
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.65rem;">
+            `;
+
+            sortedErrorLaws.forEach((item, idx) => {
+                const safeArt = item.article.replace(/\s+/g, '-');
+                html += `
+                    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); border-radius: 0.5rem; padding: 0.75rem 1rem;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+                            <span style="font-weight: bold; color: var(--text-primary); font-size: 0.95rem; cursor: pointer;" onclick="toggleErrorLawContent('${safeArt}')">
+                                <span style="color: var(--error); font-weight: bold; margin-right: 0.5rem;">[答錯 ${item.count} 次]</span>
+                                ${item.article} <span style="font-size: 0.85rem; color: var(--accent-blue); font-weight: 500;">${item.title}</span>
+                                <i class="fa-solid fa-chevron-down" id="error-law-chevron-${safeArt}" style="font-size: 0.8rem; margin-left: 0.25rem; color: var(--text-secondary);"></i>
+                            </span>
+                            <button class="action-btn" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171;" onclick="startErrorLawPractice('${item.article}')">
+                                <i class="fa-solid fa-redo"></i> 複習此法條錯題
+                            </button>
+                        </div>
+                        <div id="error-law-content-${safeArt}" style="display: none; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.4rem; white-space: pre-wrap;">
+                            ${item.content || '暫無詳細條文內容。'}
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                    </div>
+                </div>
+            `;
+            return html;
+        }
+
+        function toggleErrorLawContent(artId) {
+            const el = document.getElementById(`error-law-content-${artId}`);
+            const chev = document.getElementById(`error-law-chevron-${artId}`);
+            if (el) {
+                if (el.style.display === 'none') {
+                    el.style.display = 'block';
+                    if (chev) chev.className = 'fa-solid fa-chevron-up';
+                } else {
+                    el.style.display = 'none';
+                    if (chev) chev.className = 'fa-solid fa-chevron-down';
+                }
+            }
+        }
+
+        function startErrorLawPractice(art) {
+            const errorIds = userErrors;
+            const allQs = window.questions_db || [];
+            const matched = allQs.filter(q => errorIds.includes(q.id) && getQuestionArticles(q).includes(art));
+            
+            if (matched.length === 0) {
+                alert(`目前無此法條的錯題。`);
+                return;
+            }
+            
+            currentMode = 'practice';
+            filteredQuestions = matched;
+            currentIndex = 0;
+            visibleQuestionsCount = 30;
+            
+            const catBtns = document.querySelectorAll('.category-btn');
+            catBtns.forEach(btn => btn.classList.remove('active'));
+            
+            switchSystemMode('practice');
+            renderQuestion();
+            
+            const quizContainer = document.getElementById('quizContainer');
+            if (quizContainer) {
+                quizContainer.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
         // 投影片教學模式生成器
         // =====================================================================
         function generateSlidePresentation() {
