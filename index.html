@@ -710,10 +710,14 @@
                                     return exp;
                                 })()}
                             </div>
+                            
+                            <!-- TLR RAG 實務判決渲染區 -->
+                            <div id="tlr-judgments-${q.id}" style="margin-top: 0.85rem;"></div>
+
                             ${(() => {
                                 const exp = q.explanation || '';
                                 const isGeneric = !exp || exp.includes('相關規定辦理') || exp.length < 20;
-                                return `<div style="display:flex; gap:0.5rem; margin-top:0.85rem;">
+                                return `<div style="display:flex; gap:0.5rem; margin-top:0.85rem; flex-wrap:wrap;">
                                     <button 
                                         id="ai-explain-btn-${q.id}"
                                         onclick="requestAiExplanation('${q.id}')"
@@ -721,6 +725,15 @@
                                         onmouseover="this.style.background='linear-gradient(135deg, rgba(99,102,241,0.4), rgba(139,92,246,0.4))'"
                                         onmouseout="this.style.background='linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2))'">
                                         <i class="fa-solid fa-wand-magic-sparkles"></i> AI 深度解析
+                                    </button>
+                                    <button 
+                                        id="tlr-rag-btn-${q.id}"
+                                        onclick="requestTlrJudgments('${q.id}')"
+                                        title="連接 TLR 檢索 2200 萬筆實務判決"
+                                        style="display: flex; align-items: center; gap: 0.4rem; padding: 0.55rem 0.9rem; background: rgba(168,85,247,0.1); border: 1px solid rgba(168,85,247,0.35); border-radius: 0.5rem; color: #d8b4fe; font-size: 0.85rem; cursor: pointer; white-space:nowrap; transition: all 0.2s;"
+                                        onmouseover="this.style.background='rgba(168,85,247,0.2)'"
+                                        onmouseout="this.style.background='rgba(168,85,247,0.1)'">
+                                        <i class="fa-solid fa-scale-balanced"></i> 檢索實務判決
                                     </button>
                                     <button 
                                         id="ai-copy-btn-${q.id}"
@@ -1618,29 +1631,10 @@ ${ragContext}${tlrContext}`;
             const textDiv = document.getElementById(`explanation-text-${questionId}`);
             if (btn) {
                 btn.disabled = true;
-                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> TLR 正在進行判決語意檢索...';
-            }
-
-            // 1. 呼叫 TLR RAG 檢索相關實務判決
-            let tlrLaws = '';
-            let tlrJudgments = [];
-            try {
-                tlrJudgments = await fetchTlrJudgments(questionText, 2);
-                if (tlrJudgments && tlrJudgments.length > 0) {
-                    const tlrSections = tlrJudgments.map(j => {
-                        return `【中華民國法院實務判決 - ${j.citation_text}】\n法院與案號：${j.court_name}，${j.jdate}\n裁判摘要：${j.snippet}\n判決理由摘要：${j.fulltext || "（無全文摘要）"}\n引用法規條文：${(j.cited_articles || []).join(", ") || "無"}`;
-                    });
-                    tlrLaws = '\n[相關法院實務判決參考 (TLR RAG)]\n' + tlrSections.join('\n\n') + '\n';
-                }
-            } catch (tlrErr) {
-                console.warn("[TLR RAG] 深度解析檢索判決失敗:", tlrErr);
-            }
-
-            if (btn) {
                 btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> AI 正在查閱採購法條文...';
             }
 
-            // 2. 從 laws_db 找相關條文作為本地 RAG 背景
+            // 從 laws_db 找相關條文作為本地 RAG 背景
             let ragLaws = '';
             const keywords = questionText.split(/[，。？！\s]+/).filter(k => k.length >= 2);
             const matchedRag = (window.laws_db || []).filter(law =>
@@ -1662,12 +1656,11 @@ ${optionsText}
 【正確答案】第 ${correctAnswer} 選項
 
 ${ragLaws}
-${tlrLaws}
 
 請依以下格式回覆（使用繁體中文）：
 
 📋 **解析**
-（說明為何第${correctAnswer}選項正確，並引用具體法條，格式如：依政府採購法第XX條第X項規定：「...」；若有適用之相關法院判決，請一併說明其裁判見解）
+（說明為何第${correctAnswer}選項正確，並引用具體法條，格式如：依政府採購法第XX條第X項規定：「...」）
 
 ❌ **其他選項為何錯誤**
 （逐一說明其他選項的錯誤原因，引用具體條文）
@@ -1746,29 +1739,8 @@ ${tlrLaws}
                     .replace(/^💡/gm, '<div style="margin-top:0.75rem; font-weight:bold; color:#fbbf24;">💡')
                     .replace(/\n/g, '<br>');
 
-                // 生成司法實務判決參考區塊
-                let judgmentLinks = '';
-                if (tlrJudgments && tlrJudgments.length > 0) {
-                    judgmentLinks = '<div style="margin-top:1.2rem; padding-top:0.9rem; border-top:1px dashed rgba(255,255,255,0.15);">';
-                    judgmentLinks += '<div style="font-weight:bold; color:#a855f7; margin-bottom:0.6rem; font-size:0.92rem;"><i class="fa-solid fa-scale-balanced"></i> 參考司法實務判決 (TLR RAG)</div>';
-                    tlrJudgments.forEach(j => {
-                        judgmentLinks += `
-                            <div style="background: rgba(168,85,247,0.04); border: 1px solid rgba(168,85,247,0.2); border-radius: 0.35rem; padding: 0.75rem; margin-bottom: 0.6rem; font-size: 0.88rem;">
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem; flex-wrap:wrap; gap:0.25rem;">
-                                    <strong style="color:#e9d5ff;"><i class="fa-solid fa-gavel"></i> ${j.citation_text}</strong>
-                                    <a href="${j.citation_url || '#'}" target="_blank" style="color:#38bdf8; text-decoration:underline; font-size:0.78rem; display:inline-flex; align-items:center; gap:0.2rem;"><i class="fa-solid fa-up-right-from-square"></i> 查看裁判全文</a>
-                                </div>
-                                <div style="color:var(--text-secondary); line-height:1.45; margin-bottom:0.35rem;"><strong>法院案號：</strong>${j.court_name} (${j.jdate})</div>
-                                <div style="color:var(--text-secondary); line-height:1.45; margin-bottom:0.35rem;"><strong>裁判要旨：</strong>${j.snippet}</div>
-                                ${j.fulltext ? `<div style="color:var(--text-secondary); line-height:1.45; font-size:0.83rem; background:rgba(0,0,0,0.25); padding:0.5rem; border-radius:0.25rem; border-left:2px solid var(--accent-blue); margin-top:0.4rem;"><strong>理由片段：</strong>${j.fulltext}</div>` : ''}
-                            </div>
-                        `;
-                    });
-                    judgmentLinks += '</div>';
-                }
-
                 if (textDiv) {
-                    textDiv.innerHTML = `<div style="background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.3); border-radius: 0.5rem; padding: 1rem; line-height: 1.7;">${htmlText}${judgmentLinks}</div>`;
+                    textDiv.innerHTML = `<div style="background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.3); border-radius: 0.5rem; padding: 1rem; line-height: 1.7;">${htmlText}</div>`;
                 }
                 if (btn) {
                     btn.innerHTML = '<i class="fa-solid fa-check"></i> 已載入 AI 深度解析';
@@ -1780,6 +1752,80 @@ ${tlrLaws}
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> 重試 AI 深度解析';
+                }
+            }
+        }
+
+        // =====================================================================
+        // TLR RAG 司法實務判決單獨檢索 (有需要時手動觸發)
+        // =====================================================================
+        async function requestTlrJudgments(questionId) {
+            const list = currentMode === 'exam' ? examQuestions : filteredQuestions;
+            const q = list.find(item => item.id === questionId) || (window.questions_db || []).find(item => item.id === questionId);
+            if (!q) {
+                alert('找不到該題目的資料！');
+                return;
+            }
+
+            const btn = document.getElementById(`tlr-rag-btn-${questionId}`);
+            const judgmentsDiv = document.getElementById(`tlr-judgments-${questionId}`);
+            if (!judgmentsDiv) return;
+
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 檢索判決中...';
+            }
+
+            judgmentsDiv.innerHTML = `<div style="color:var(--text-secondary); font-size:0.85rem; padding: 0.5rem 0; font-style:italic;"><i class="fa-solid fa-spinner fa-spin"></i> 正在連線 TLR 語意檢索系統，查詢 2,200 萬筆實務判決...</div>`;
+
+            try {
+                const tlrJudgments = await fetchTlrJudgments(q.question_text, 3);
+                if (!tlrJudgments || tlrJudgments.length === 0) {
+                    judgmentsDiv.innerHTML = `
+                        <div style="background: rgba(239, 68, 68, 0.04); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 0.35rem; padding: 0.75rem; font-size: 0.85rem; color: var(--error); text-align: left;">
+                            ⚠️ 語意檢索完成，但在司法判決庫中未尋找到與本題直接相關的實務判決。
+                        </div>
+                    `;
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fa-solid fa-scale-balanced"></i> 重新檢索判決';
+                    }
+                    return;
+                }
+
+                let html = '<div style="padding-top:0.75rem; border-top:1px dashed rgba(255,255,255,0.15); margin-bottom:0.75rem; text-align: left;">';
+                html += '<div style="font-weight:bold; color:#a855f7; margin-bottom:0.6rem; font-size:0.92rem; display:flex; align-items:center; gap:0.35rem;"><i class="fa-solid fa-scale-balanced"></i> 參考司法實務判決 (TLR RAG)</div>';
+                tlrJudgments.forEach(j => {
+                    html += `
+                        <div style="background: rgba(168,85,247,0.04); border: 1px solid rgba(168,85,247,0.2); border-radius: 0.35rem; padding: 0.75rem; margin-bottom: 0.6rem; font-size: 0.88rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem; flex-wrap:wrap; gap:0.25rem;">
+                                <strong style="color:#e9d5ff;"><i class="fa-solid fa-gavel"></i> ${j.citation_text}</strong>
+                                <a href="${j.citation_url || '#'}" target="_blank" style="color:#38bdf8; text-decoration:underline; font-size:0.78rem; display:inline-flex; align-items:center; gap:0.2rem;"><i class="fa-solid fa-up-right-from-square"></i> 查看裁判全文</a>
+                            </div>
+                            <div style="color:var(--text-secondary); line-height:1.45; margin-bottom:0.35rem;"><strong>法院案號：</strong>${j.court_name} (${j.jdate})</div>
+                            <div style="color:var(--text-secondary); line-height:1.45; margin-bottom:0.35rem;"><strong>裁判要旨：</strong>${j.snippet}</div>
+                            ${j.fulltext ? `<div style="color:var(--text-secondary); line-height:1.45; font-size:0.83rem; background:rgba(0,0,0,0.25); padding:0.5rem; border-radius:0.25rem; border-left:2px solid var(--accent-blue); margin-top:0.4rem;"><strong>理由片段：</strong>${j.fulltext}</div>` : ''}
+                        </div>
+                    `;
+                });
+                html += '</div>';
+
+                judgmentsDiv.innerHTML = html;
+
+                if (btn) {
+                    btn.innerHTML = '<i class="fa-solid fa-check"></i> 實務判決已載入';
+                    btn.style.opacity = '0.5';
+                    btn.disabled = true;
+                }
+            } catch (err) {
+                judgmentsDiv.innerHTML = `
+                    <div style="background: rgba(239, 68, 68, 0.04); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 0.35rem; padding: 0.75rem; font-size: 0.85rem; color: var(--error); text-align: left;">
+                        ❌ 司法判決檢索失敗：${err.message}，請檢查網路連線後重試。
+                    </div>
+                `;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-scale-balanced"></i> 重試檢索判決';
                 }
             }
         }
