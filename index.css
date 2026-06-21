@@ -342,14 +342,47 @@ body {
 
 /* 法規異動警告卡片 */
 .amendment-card {
-    background: var(--warning-bg);
-    border: 1px solid var(--warning-border);
+    background: rgba(30, 41, 59, 0.45);
+    border: 1px solid rgba(245, 158, 11, 0.25);
     border-radius: 1rem;
     padding: 1.25rem;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+    backdrop-filter: blur(12px);
+    transition: all var(--transition-normal);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
     animation: slideUp var(--transition-normal);
+}
+
+.amendment-card.pending {
+    border-color: rgba(245, 158, 11, 0.25);
+    background: rgba(245, 158, 11, 0.04);
+}
+
+.amendment-card.revealed {
+    border-color: rgba(245, 158, 11, 0.6);
+    background: rgba(245, 158, 11, 0.09);
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.15);
+}
+
+.amendment-card.revealed-glow {
+    animation: warningPulse 1.5s ease-in-out;
+}
+
+@keyframes warningPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+        border-color: rgba(245, 158, 11, 0.8);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(245, 158, 11, 0);
+        border-color: rgba(245, 158, 11, 0.6);
+    }
+    100% {
+        box-shadow: 0 0 15px rgba(245, 158, 11, 0.15);
+        border-color: rgba(245, 158, 11, 0.6);
+    }
 }
 
 .amendment-title {
@@ -857,40 +890,93 @@ body {
 
 /* 3. 考點熱度分析 (Heat Item) */
 .heat-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.25rem;
     margin-top: 1rem;
     animation: slideUp var(--transition-normal);
 }
 
+@media (max-width: 640px) {
+    .heat-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+}
+
 .heat-item {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--card-border);
-    border-radius: 0.75rem;
-    padding: 1rem;
+    background: rgba(15, 22, 42, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 1rem;
+    padding: 1.25rem;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    gap: 0.5rem;
-    transition: all var(--transition-fast);
+    gap: 0.75rem;
+    position: relative;
+    backdrop-filter: blur(12px);
+    transition: all var(--transition-normal);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
 .heat-item:hover {
-    transform: translateY(-2px);
-    border-color: rgba(239, 68, 68, 0.4);
-    background: rgba(239, 68, 68, 0.02);
+    transform: translateY(-4px);
+    border-color: var(--accent-blue);
+    background: rgba(30, 41, 59, 0.65);
+    box-shadow: 0 8px 30px rgba(56, 189, 248, 0.15);
+}
+
+/* TOP 3 Special Hover Glows */
+.heat-item.heat-gold:hover {
+    border-color: #fbbf24;
+    box-shadow: 0 8px 30px rgba(251, 191, 36, 0.25);
+}
+.heat-item.heat-silver:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 8px 30px rgba(203, 213, 225, 0.2);
+}
+.heat-item.heat-bronze:hover {
+    border-color: #f97316;
+    box-shadow: 0 8px 30px rgba(249, 115, 22, 0.15);
 }
 
 .heat-top-badge {
     align-self: flex-start;
-    font-size: 0.7rem;
-    font-weight: bold;
-    padding: 0.15rem 0.45rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    padding: 0.2rem 0.6rem;
     border-radius: 99px;
-    background: rgba(239, 68, 68, 0.15);
-    color: #f87171;
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.heat-law-title {
+    transition: color var(--transition-fast);
+}
+
+.heat-item:hover .heat-law-title {
+    color: #ffffff;
+}
+
+.heat-law-content {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    font-family: inherit;
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.heat-practice-btn {
+    border-radius: 0.5rem;
+    height: 38px;
+}
+
+.heat-item:hover .heat-practice-btn {
+    background: var(--accent-gradient) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
 
 /* 4. 申論自評挑戰 (Essay Panel) */
