@@ -859,29 +859,29 @@
                         <!-- 修法警告區塊 -->
                         <div class="amendment-card ${isAmendmentRevealed ? 'revealed' : 'pending'}" id="amendment-${q.id}" style="${q.has_amendment ? 'display: flex;' : 'display: none;'} margin-top: 1rem;">
                             <!-- Pending State (Subtle Non-spoil Warning) -->
-                            <div class="amendment-pending-state" style="${isAmendmentRevealed ? 'display: none;' : 'display: flex; align-items: center; gap: 0.75rem; width: 100%;'}">
-                                <div class="amendment-warning-icon" style="color: var(--warning); font-size: 1.2rem;">
+                            <div class="amendment-pending-state" style="${isAmendmentRevealed ? 'display: none;' : 'display: flex;'}">
+                                <div class="amendment-warning-icon">
                                     <i class="fa-solid fa-circle-exclamation"></i>
                                 </div>
-                                <div style="flex: 1; font-size: 0.9rem; font-weight: 500; color: #fbd38d;">
-                                    ⚠️ 本題涉及修法變更，請注意舊法與現行規定對照 (答題後解鎖修法詳情)
+                                <div class="amendment-pending-text">
+                                    本題涉及修法變更，請注意舊法與現行規定對照 (答題後解鎖修法詳情)
                                 </div>
                             </div>
                             <!-- Revealed State (Full Comparative Info) -->
-                            <div class="amendment-revealed-state" style="${isAmendmentRevealed ? 'display: flex;' : 'display: none;'} flex-direction: column; width: 100%; gap: 0.6rem;">
-                                <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                    <div class="amendment-warning-icon" style="color: var(--warning); font-size: 1.2rem; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: rgba(245, 158, 11, 0.15); border-radius: 50%;">
+                            <div class="amendment-revealed-state" style="${isAmendmentRevealed ? 'display: flex;' : 'display: none;'}">
+                                <div class="amendment-revealed-header">
+                                    <div class="amendment-warning-circle">
                                         <i class="fa-solid fa-triangle-exclamation"></i>
                                     </div>
-                                    <div style="font-weight: 700; color: #fbd38d; font-size: 1rem; letter-spacing: 0.5px;">修法提醒警示 (新舊法規對照)</div>
+                                    <div class="amendment-revealed-title">修法提醒警示 (新舊法規對照)</div>
                                 </div>
-                                <div style="font-size: 0.9rem; margin-top: 0.25rem; color: #ffedd5; line-height: 1.5; background: rgba(245, 158, 11, 0.08); padding: 0.75rem 1rem; border-radius: 0.5rem; border-left: 4px solid var(--warning); box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);">
+                                <div class="amendment-warning-box">
                                     ${q.amendment_warning || ''}
                                 </div>
-                                <div style="display: grid; grid-template-columns: 1fr; gap: 0.5rem; margin-top: 0.25rem; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 0.5rem;">
-                                    <div style="font-size: 0.85rem; color: var(--text-secondary);"><span style="text-decoration: line-through; opacity: 0.75;"><strong>歷史出題依據：</strong>${q.historical_regulation || ''}</span></div>
-                                    <div style="font-size: 0.85rem; color: #34d399; font-weight: 600; display: flex; align-items: center; gap: 0.3rem;">
-                                        <i class="fa-solid fa-circle-check" style="font-size: 0.8rem;"></i> <strong>現行最新法規：</strong>${q.current_regulation || ''}
+                                <div class="amendment-compare-grid">
+                                    <div class="amendment-history-row"><strong>歷史出題依據：</strong>${q.historical_regulation || ''}</div>
+                                    <div class="amendment-current-row">
+                                        <i class="fa-solid fa-circle-check"></i> <strong>現行最新法規：</strong>${q.current_regulation || ''}
                                     </div>
                                 </div>
                             </div>
@@ -2536,70 +2536,49 @@ ${userInput}
                 const safeArt = item.article.replace(/\s+/g, '-');
                 
                 // 根據排名設定不同的主題樣式與等級
-                let itemStyle = '';
-                let badgeStyle = '';
                 let iconHtml = '';
-                let countColor = '';
                 let cardClass = 'heat-item';
 
                 if (idx === 0) {
-                    // TOP 1 - 金牌冠軍
-                    itemStyle = `border-top: 4px solid #fbbf24; border-left: 1px solid rgba(251,191,36,0.3); background: linear-gradient(135deg, rgba(251, 191, 36, 0.05) 0%, rgba(15, 22, 42, 0.85) 100%); box-shadow: 0 8px 24px rgba(251, 191, 36, 0.15);`;
-                    badgeStyle = `background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%); color: #000;`;
-                    iconHtml = `<i class="fa-solid fa-crown" style="color: #fbbf24; margin-right: 0.25rem;"></i>`;
-                    countColor = `color: #fbbf24;`;
+                    iconHtml = `<i class="fa-solid fa-crown"></i>`;
                     cardClass += ' heat-gold';
                 } else if (idx === 1) {
-                    // TOP 2 - 銀牌
-                    itemStyle = `border-top: 4px solid #cbd5e1; border-left: 1px solid rgba(148,163,184,0.3); background: linear-gradient(135deg, rgba(148, 163, 184, 0.04) 0%, rgba(15, 22, 42, 0.85) 100%); box-shadow: 0 8px 24px rgba(148, 163, 184, 0.1);`;
-                    badgeStyle = `background: linear-gradient(135deg, #64748b 0%, #cbd5e1 100%); color: #fff;`;
-                    iconHtml = `<i class="fa-solid fa-medal" style="color: #cbd5e1; margin-right: 0.25rem;"></i>`;
-                    countColor = `color: #cbd5e1;`;
+                    iconHtml = `<i class="fa-solid fa-medal"></i>`;
                     cardClass += ' heat-silver';
                 } else if (idx === 2) {
-                    // TOP 3 - 銅牌
-                    itemStyle = `border-top: 4px solid #f97316; border-left: 1px solid rgba(249,115,22,0.3); background: linear-gradient(135deg, rgba(217, 119, 6, 0.04) 0%, rgba(15, 22, 42, 0.85) 100%); box-shadow: 0 8px 24px rgba(217, 119, 6, 0.08);`;
-                    badgeStyle = `background: linear-gradient(135deg, #b45309 0%, #f97316 100%); color: #fff;`;
-                    iconHtml = `<i class="fa-solid fa-award" style="color: #f97316; margin-right: 0.25rem;"></i>`;
-                    countColor = `color: #f97316;`;
+                    iconHtml = `<i class="fa-solid fa-award"></i>`;
                     cardClass += ' heat-bronze';
                 } else if (idx < 10) {
-                    // TOP 4-10 - 高熱度
-                    itemStyle = `border-left: 3px solid #f97316; background: rgba(249, 115, 22, 0.03);`;
-                    badgeStyle = `background: rgba(249, 115, 22, 0.15); color: #ffedd5; border: 1px solid rgba(249, 115, 22, 0.3);`;
-                    iconHtml = `<i class="fa-solid fa-fire" style="color: #f97316; margin-right: 0.25rem;"></i>`;
-                    countColor = `color: #f97316;`;
+                    iconHtml = `<i class="fa-solid fa-fire"></i>`;
+                    cardClass += ' heat-top-10';
                 } else {
-                    // TOP 11-30 - 一般熱度
-                    itemStyle = `border-left: 3px solid #06b6d4; background: rgba(6, 182, 212, 0.015);`;
-                    badgeStyle = `background: rgba(6, 182, 212, 0.12); color: #e0f7fa; border: 1px solid rgba(6, 182, 212, 0.3);`;
-                    iconHtml = `<i class="fa-solid fa-bolt" style="color: #06b6d4; margin-right: 0.25rem;"></i>`;
-                    countColor = `color: #06b6d4;`;
+                    iconHtml = `<i class="fa-solid fa-bolt"></i>`;
+                    cardClass += ' heat-regular';
                 }
                 
                 return `
-                    <div class="${cardClass}" id="heat-item-${safeArt}" style="${itemStyle} cursor: pointer;" onclick="startHeatLawPractice('${item.article}')">
-                        <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 0.4rem; pointer-events: none;">
-                            <span class="heat-top-badge" style="${badgeStyle}">TOP ${idx + 1}</span>
-                            <span style="font-size: 0.8rem; ${countColor} font-weight: bold; display: flex; align-items: center;">
+                    <div class="${cardClass}" id="heat-item-${safeArt}" onclick="startHeatLawPractice('${item.article}')">
+                        <div class="heat-item-header">
+                            <span class="heat-top-badge">TOP ${idx + 1}</span>
+                            <span class="heat-count">
                                 ${iconHtml} 出現 ${item.count} 次
                             </span>
                         </div>
                         
-                        <div style="font-weight: 700; color: var(--text-primary); font-size: 1.05rem; display: flex; align-items: center; justify-content: space-between; margin-top: 0.25rem;">
-                            <span class="heat-law-title">${item.article} <span style="font-size: 0.85rem; color: var(--accent-blue); font-weight: 500; margin-left: 0.25rem;">${item.title}</span></span>
-                            <button class="heat-law-toggle" style="background: transparent; border: none; color: var(--text-secondary); cursor: pointer; padding: 0.25rem;" onclick="event.stopPropagation(); toggleHeatLawContent('${item.article}')">
-                                <i class="fa-solid fa-chevron-down" id="heat-law-chevron-${safeArt}" style="font-size: 0.8rem;"></i>
+                        <div class="heat-law-title-wrapper">
+                            <span class="heat-law-title">${item.article} <span class="heat-law-sub">${item.title}</span></span>
+                            <button class="heat-law-toggle" onclick="event.stopPropagation(); toggleHeatLawContent('${item.article}')">
+                                <i class="fa-solid fa-chevron-down" id="heat-law-chevron-${safeArt}"></i>
                             </button>
                         </div>
                         
-                        <div id="heat-law-content-${safeArt}" class="heat-law-content" style="display: none; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 0.5rem; white-space: pre-wrap; cursor: text;" onclick="event.stopPropagation();">
+                        <div id="heat-law-content-${safeArt}" class="heat-law-content" onclick="event.stopPropagation();">
                             ${item.content}
                         </div>
                         
-                        <div style="margin-top: auto; padding-top: 0.75rem; display: flex; justify-content: flex-end; border-top: 1px solid rgba(255,255,255,0.03);">
-                            <button class="action-btn heat-practice-btn" style="width: 100%; justify-content: center; padding: 0.4rem 0.8rem; font-size: 0.8rem; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); color: var(--accent-blue); font-weight: bold; transition: all 0.2s;" onclick="event.stopPropagation(); startHeatLawPractice('${item.article}')">
-                                <i class="fa-solid fa-play" style="margin-right: 0.25rem;"></i> 立即專攻練習 (${item.count} 題)
+                        <div class="heat-item-footer">
+                            <button class="action-btn heat-practice-btn" onclick="event.stopPropagation(); startHeatLawPractice('${item.article}')">
+                                <i class="fa-solid fa-play"></i> 立即專攻練習 (${item.count} 題)
                             </button>
                         </div>
                     </div>
